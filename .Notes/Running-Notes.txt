@@ -688,3 +688,105 @@ If you want next, I can give you:
 	•	🏗 Architecture diagram explanation
 
 Tell me which one you want next.
+
+
+
+=============================================================================
+
+Plan: OTP Service Foundation Setup
+TL;DR: Create a standalone, fully containerized OTP service with PostgreSQL, Redis, and Celery+RabbitMQ. The DB schema skeleton exists but needs conversion to Alembic migrations. We'll scaffold Dockerfiles, docker-compose.yml, and initial project structure for development.
+
+Key Decisions Made
+Task Queue: Celery + RabbitMQ (enterprise production pattern)
+Database: New dedicated PostgreSQL database with separate schema for OTP
+Migrations: Alembic (SQLAlchemy migrations tool)
+Initial Providers: 2 free + 1-2 fallback (scaffolded, not fully implemented yet)
+DB Schema: Your SnapUser_table.sql is 98% correct but needs: (1) convert to Alembic, (2) fix typo settings_jsom → settings_json, (3) add proper indexes, (4) add UUID extension
+Steps
+1. Fix and Convert Database Schema to Alembic
+
+Create alembic/ folder structure with env.py, script.py.mako
+Convert SnapUser_table.sql → Alembic migration file alembic/versions/001_initial_schema.py
+Add fixes: fix settings_jsom typo, add indexes on (tenant_id, email, purpose), expires_at, (challenge_id), and PostgreSQL UUID extension
+Create alembic.ini with OTP database connection string
+2. Create Root Project Files
+
+requirements.txt: FastAPI, SQLAlchemy, asyncpg, alembic, celery, redis, uvicorn, gunicorn, pydantic, python-dotenv
+.env.example: Template for DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND, OTP_SECRET_KEY, DEBUG
+pyproject.toml: Project metadata, black, isort, pytest config (match fastapi-users pattern)
+Dockerfile: Multi-stage build for otp_api service
+docker-compose.yml: Services for otp_api, otp_worker, postgres, redis, rabbitmq
+3. Scaffold Core App Structure
+
+app/init.py: Empty init
+app/main.py: FastAPI app factory, startup/shutdown events for DB + Redis connectivity checks
+app/config.py: Pydantic settings loader (env vars, validation)
+app/db/base.py: SQLAlchemy engine, session factory, async context managers
+app/db/init.py: Export engine, Session
+Update app/models/ with SQLAlchemy ORM classes: OtpChallenge, OtpDeliveryAttempt, OtpRetryJob, ProviderConfig
+4. Create Celery Configuration
+
+app/celery_app.py: Celery instance, task autodiscover, broker/backend config
+app/tasks/init.py: Task module
+app/tasks/retry_otp.py: Skeleton task retry_send_otp(challenge_id) (stub for Phase 6)
+5. Create API Structure Scaffolding
+
+app/api/init.py: Include routers
+app/api/v1/ folder with routers (stubs): otp.py (Phase 7 will implement)
+app/api/health.py: /internal/health endpoint (readiness for DB, Redis, RabbitMQ)
+6. Create Docker Infrastructure
+
+docker/Dockerfile: API and worker entrypoints
+docker/docker-compose.yml with:
+otp_api: Uvicorn on port 8001
+otp_worker: Celery worker (celery -A app.celery_app worker)
+postgres: OTP database, port 5432
+redis: Cache + Celery backend, port 6379
+rabbitmq: Celery broker, ports 5672, 15672 (admin)
+docker/.env: Dev environment variables
+7. Create Test Structure
+
+tests/init.py
+tests/conftest.py: Pytest fixtures for async DB session, mocked Redis, mocked Celery (stubs for now)
+tests/test_health.py: Health endpoint test
+8. Documentation & Helper Scripts
+
+README.md: Local dev setup, Docker commands, architecture overview
+scripts/reset_db.sh: Alembic upgrade + drop tables (dev only)
+scripts/seed_provider_config.py: Insert 2-3 stub providers into provider_config table (Phase 1 output)
+Verification
+After completing these steps, verify:
+
+docker-compose up successfully starts all 4 services
+OTP database tables created via Alembic: python -m alembic upgrade head
+Health endpoint returns 200: curl http://localhost:8001/internal/health
+Can connect to Redis: redis-cli -p 6379 ping → PONG
+Can verify Celery sees the app: celery -A app.celery_app inspect version
+Pytest runs without errors (fixtures mock services): pytest tests/
+Files to Create/Modify
+Create (new files):
+
+requirements.txt
+.env.example
+pyproject.toml
+Dockerfile
+docker-compose.yml
+alembic/env.py
+alembic/script.py.mako
+alembic/versions/001_initial_schema.py
+alembic.ini
+app/main.py
+app/config.py
+app/db/base.py
+app/celery_app.py
+app/tasks/retry_otp.py
+app/api/health.py
+tests/conftest.py
+tests/test_health.py
+Modify/Refactor:
+
+app/db/SnapUser_table.sql → convert to Alembic (move content to alembic/versions/001_initial_schema.py)
+app/models/ → add SQLAlchemy ORM models
+Does this plan align with your vision? Any adjustments needed before I proceed with implementation?
+
+Claude Haiku 4.5 • 0.33x
