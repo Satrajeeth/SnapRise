@@ -1,0 +1,67 @@
+services:
+
+  # ----------------------
+  # POSTGRES
+  # ----------------------
+  postgres:
+    image: postgres:16
+    container_name: otp_postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: otp_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ----------------------
+  # REDIS
+  # ----------------------
+  redis:
+    image: redis:7
+    container_name: otp_redis
+    ports:
+      - "6380:6379"
+
+  # ----------------------
+  # RABBITMQ
+  # ----------------------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: otp_rabbitmq
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+
+  # ----------------------
+  # OTP API
+  # ----------------------
+  otp_api:
+    build: .
+    container_name: otp_api
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    ports:
+      - "8001:8000"
+
+  # ----------------------
+  # CELERY WORKER
+  # ----------------------
+  otp_worker:
+    build: .
+    container_name: otp_worker
+    command: celery -A app.core.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+
+volumes:
+  postgres_data:
