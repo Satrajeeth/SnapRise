@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     #CELERY Configuration
     celery_broker_url: str = Field(..., alias="CELERY_BROKER_URL")
-    celerey_result_backend: str = Field(..., alias="CELERY_RESULT_BACKEND")
+    celery_result_backend: str = Field(..., alias="CELERY_RESULT_BACKEND")
 
     #API Configuration
     api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")

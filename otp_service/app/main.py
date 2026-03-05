@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db import engine, async_session_maker
 from app.core.redis import redis_client
 from app.api import api_router
+from app.celery_app import celery_app
 
 logget = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
