@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  smtp:
+    build: .
+    container_name: smtp-server
+    ports:
+      - "2525:25"
+    restart: always
