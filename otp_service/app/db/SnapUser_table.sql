@@ -22,6 +22,20 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+
+CREATE INDEX ix_otp_challenges_lookup
+ON otp_challenges (tenant_id, email, purpose);
+
+CREATE INDEX ix_otp_challenges_expires
+ON otp_challenges (expires_at);
+
+CREATE INDEX ix_otp_delivery_attempts_challenge
+ON otp_delivery_attempts (challenge_id);
+
+CREATE INDEX ix_otp_retry_jobs_challenge
+ON otp_retry_jobs (challenge_id);
 --
 -- Name: otp_challenges; Type: TABLE; Schema: public; Owner: app
 --
@@ -92,7 +106,7 @@ CREATE TABLE public.provider_config (
     priority integer NOT NULL,
     daily_limit integer NOT NULL,
     monthly_limit integer NOT NULL,
-    settings_jsom jsonb,
+    settings_json jsonb,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_daily_limit CHECK ((daily_limit >= 0)),
     CONSTRAINT chk_monthly_limit CHECK ((monthly_limit >= 0)),
