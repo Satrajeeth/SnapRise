@@ -1,79 +1,31 @@
 import uuid
-from sqlalchemy import (
-    Column,
-    String,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Index,
-    func,
-)
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db import Base
-
-
-DeliveryStatus = Enum(
-    "success",
-    "failed",
-    "retrying",
-    name="delivery_status",
-)
-
-ProviderEnum = Enum(
-    "SMS",
-    "EMAIL",
-    "WHATSAPP",
-    name="provider_enum",
-)
+from app.domain.enums import AttemptResult, ProviderErrorType, ProviderTier
 
 
 class OtpDeliveryAttempt(Base):
     __tablename__ = "otp_delivery_attempts"
 
-    id = Column(
-        PG_UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-
-    challenge_id = Column(
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("otp_challenges.id", ondelete="CASCADE"),
-        nullable=False,
         index=True,
     )
-
-    provider = Column(
-        ProviderEnum,
-        nullable=False,
-    )
-
-    status = Column(
-        DeliveryStatus,
-        nullable=False,
-        default="retrying",
-        index=True,
-    )
-
-    error_message = Column(
-        String(500),
+    provider_id: Mapped[str] = mapped_column(String(120), index=True)
+    tier: Mapped[ProviderTier] = mapped_column(Enum(ProviderTier, name="provider_tier"))
+    result: Mapped[AttemptResult] = mapped_column(Enum(AttemptResult, name="attempt_result"), index=True)
+    error_type: Mapped[ProviderErrorType | None] = mapped_column(
+        Enum(ProviderErrorType, name="provider_error_type"),
         nullable=True,
     )
-
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-        index=True,
-    )
-
-    updated_at = Column(
-        DateTime(timezone=True),
-        onupdate=func.now(),
-    )
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     challenge = relationship("OtpChallenge", backref="delivery_attempts")
-
-
-Index("ix_delivery_status_created", OtpDeliveryAttempt.status, OtpDeliveryAttempt.created_at)

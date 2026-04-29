@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+
 from app.api.otp import router as otp_router
 
 api_router = APIRouter()

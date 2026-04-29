@@ -1,63 +1,20 @@
-import uuid
-from sqlalchemy import (
-    Column,
-    String,
-    Boolean,
-    Integer,
-    DateTime,
-    JSON,
-    Index,
-    func,
-)
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import Boolean, DateTime, Enum, Integer, JSON, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
 from app.db import Base
+from app.domain.enums import ProviderTier
 
 
 class ProviderConfig(Base):
-    __tablename__ = "provider_configs"
+    __tablename__ = "provider_config"
 
-    id = Column(
-        PG_UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-
-    provider_name = Column(
-        String(50),
-        nullable=False,
-        unique=True,
-    )
-
-    is_active = Column(
-        Boolean,
-        nullable=False,
-        default=True,
-        index=True,
-    )
-
-    config_data = Column(
-        JSON,
-        nullable=False,
-    )
-
-    retry_strategy = Column(
-        String(50),  # exponential / linear / fixed
-        nullable=True,
-    )
-
-    max_retries = Column(
-        Integer,
-        nullable=False,
-        default=3,
-    )
-
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-    updated_at = Column(
-        DateTime(timezone=True),
-        onupdate=func.now(),
-    )
+    provider_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    tier: Mapped[ProviderTier] = mapped_column(Enum(ProviderTier, name="provider_config_tier"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    weight: Mapped[int] = mapped_column(Integer, default=1)
+    priority: Mapped[int] = mapped_column(Integer, default=100)
+    daily_limit: Mapped[int] = mapped_column(Integer, default=0)
+    monthly_limit: Mapped[int] = mapped_column(Integer, default=0)
+    settings_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

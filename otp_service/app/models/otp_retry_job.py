@@ -1,79 +1,32 @@
 import uuid
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Index,
-    func,
-)
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db import Base
-
-
-RetryJobStatus = Enum(
-    "pending",
-    "completed",
-    "failed",
-    name="retry_job_status",
-)
+from app.domain.enums import RetryJobStatus
 
 
 class OtpRetryJob(Base):
     __tablename__ = "otp_retry_jobs"
 
-    id = Column(
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-
-    delivery_attempt_id = Column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("otp_delivery_attempts.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("otp_challenges.id", ondelete="CASCADE"),
         index=True,
     )
-
-    retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-    )
-
-    next_retry_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
+    status: Mapped[RetryJobStatus] = mapped_column(
+        Enum(RetryJobStatus, name="retry_job_status"),
+        default=RetryJobStatus.pending,
         index=True,
     )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    next_retry_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), index=True)
+    last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    payload_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
-    status = Column(
-        RetryJobStatus,
-        nullable=False,
-        default="pending",
-        index=True,
-    )
-
-    last_error = Column(
-        String(500),
-        nullable=True,
-    )
-
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-    updated_at = Column(
-        DateTime(timezone=True),
-        onupdate=func.now(),
-    )
-
-    delivery_attempt = relationship("OtpDeliveryAttempt", backref="retry_jobs")
-
-
-Index("ix_retry_status_next", OtpRetryJob.status, OtpRetryJob.next_retry_at)
+    challenge = relationship("OtpChallenge", backref="retry_jobs")
