@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     api_prefix: str = Field(default="/v1", alias="API_PREFIX")
     allowed_origins: List[str] = Field(default=["*"], alias="ALLOWED_ORIGINS")
 
+    smtp_host: str = Field(default="smtp", alias="SMTP_HOST")
+    smtp_port: int = Field(default=25, alias="SMTP_PORT")
+    smtp_from_email: str = Field(default="no-reply@smtp.local", alias="SMTP_FROM_EMAIL")
+    smtp_timeout_seconds: int = Field(default=10, alias="SMTP_TIMEOUT_SECONDS")
+    smtp_provider_id: str = Field(default="smtp-default", alias="SMTP_PROVIDER_ID")
+
     otp_code_length: int = Field(default=6, alias="OTP_CODE_LENGTH")
     otp_ttl_seconds: int = Field(default=600, alias="OTP_TTL_SECONDS")
     otp_max_attempts: int = Field(default=5, alias="OTP_MAX_ATTEMPTS")
