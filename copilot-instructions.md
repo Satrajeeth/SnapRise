@@ -1,0 +1,210 @@
+# Copilot Instructions for SnapRise OTP Service
+
+## Project Overview
+
+SnapRise is a production-grade **OTP (One-Time Password) microservice** built with FastAPI, Celery, PostgreSQL, and Redis. The service generates and delivers OTPs through multiple providers (SendGrid, SMTP) with built-in features like circuit breaking, quota management, and automatic retry handling.
+
+## Repository Structure
+
+All primary application code lives in `otp_service/`. The key directories are:
+
+- **`otp_service/app/api/`** - FastAPI route handlers for OTP endpoints
+- **`otp_service/app/core/`** - Infrastructure code: Celery wiring, Redis client, app settings, and logging
+- **`otp_service/app/models/`** - SQLAlchemy ORM models (OtpChallenge, OtpDeliveryAttempt, OtpRetryJob, ProviderConfig)
+- **`otp_service/app/services/`** - Core business logic:
+  - `otp_service.py` - Main OTP challenge and delivery orchestration
+  - `routing.py` - Provider routing and failover logic
+  - `quota.py` - Rate limiting and quota enforcement
+  - `circuit_breaker.py` - Circuit breaker pattern for provider health
+  - `retry_dispatcher.py` - Celery task scheduling and retry management
+  - `policies.py` - Authorization and policy enforcement
+  - `cache.py` - Redis caching utilities
+  - `security.py` - Authentication and security helpers
+- **`otp_service/app/providers/`** - Provider integrations (SendGrid, SMTP, etc.)
+- **`otp_service/app/schemas/`** - Pydantic request/response models
+- **`otp_service/app/tasks/`** - Celery task definitions for async work
+- **`otp_service/app/domain/`** - Domain logic and business rules
+- **`otp_service/tests/`** - Test suite (pytest)
+- **`otp_service/alembic/versions/`** - Database migrations
+
+Supporting files:
+- **`otp_service/.env.example`** - Environment variable template
+- **`docker-compose.yml`** - Local development stack (Postgres, Redis, RabbitMQ, API, Worker)
+- **`Postman_Collection/` & `Generated_Postman_Collections/`** - API documentation
+- **`fastapi-users/`** - Upstream reference checkout (do not modify unless intentionally syncing)
+
+## Build, Test, and Development Commands
+
+All commands run from `otp_service/` unless noted otherwise.
+
+### Setup & Dependencies
+\`\`\`bash
+# Install dependencies (Python 3.11+ required)
+pip install -r requirements.txt
+
+# Apply database migrations
+alembic upgrade head
+\`\`\`
+
+### Local Development
+\`\`\`bash
+# Run FastAPI server with auto-reload (port 8000)
+uvicorn app.main:app --reload --port 8000
+
+# Start Celery worker for async OTP retry tasks
+celery -A app.core.celery_app worker --loglevel=info
+
+# Run entire stack with Docker (Postgres, Redis, RabbitMQ, API, Worker)
+docker compose up --build
+# - Postgres: localhost:5433
+# - Redis: localhost:6380
+# - RabbitMQ: localhost:5673 (AMQP), localhost:15673 (management UI)
+# - API: localhost:8001
+\`\`\`
+
+### Testing & Formatting
+\`\`\`bash
+# Run all tests
+pytest
+
+# Run tests in a specific file
+pytest tests/test_otp_service.py
+
+# Run a specific test function
+pytest tests/test_otp_service.py::test_create_challenge
+
+# Format code (Black @ 88 chars, isort)
+black . && isort .
+
+# Verify formatting without changes
+black --check . && isort --check-only .
+\`\`\`
+
+### Database Migrations
+\`\`\`bash
+# Create a new migration
+alembic revision --autogenerate -m "description of changes"
+
+# Apply pending migrations
+alembic upgrade head
+
+# Rollback one migration
+alembic downgrade -1
+\`\`\`
+
+## Architecture & Key Patterns
+
+### Async-First Design
+- All database operations, Redis calls, and HTTP requests use async/await with SQLAlchemy async sessions
+- Pytest is configured with \`asyncio_mode = auto\` in \`pyproject.toml\` for automatic async test support
+
+### Service Layer Pattern
+- Business logic lives in \`services/\` (not in route handlers)
+- Route handlers in \`api/\` are thin, delegating to services
+- Services receive dependencies via function parameters (FastAPI dependency injection)
+
+### Celery Task Distribution
+- OTP retry logic runs as async Celery tasks scheduled via \`retry_dispatcher.py\`
+- Tasks read from RabbitMQ and execute worker code in \`app/tasks/\`
+- Redis is used for caching and circuit breaker state; RabbitMQ for task queues
+
+### Provider Routing & Resilience
+- \`routing.py\` implements failover logic across multiple OTP providers (SendGrid, SMTP)
+- \`circuit_breaker.py\` tracks provider health; fails open to secondary provider on repeated failures
+- \`quota.py\` enforces per-user and global rate limits stored in Redis
+- \`policies.py\` checks authorization rules before allowing OTP generation
+
+### Middleware & Startup
+- \`main.py\` uses FastAPI lifespan context to wait for Postgres and Redis before accepting requests
+- CORS middleware is configured via \`app/config.py\` settings
+- Health check endpoint: \`GET /health\`
+
+## Code Style & Naming Conventions
+
+- **Python Version**: 3.11+
+- **Indentation**: 4 spaces
+- **Formatter**: Black (line length 88), isort (Black profile)
+- **Functions & Modules**: \`snake_case\` (e.g., \`create_otp_challenge\`, \`otp_service.py\`)
+- **Classes**: \`PascalCase\` (e.g., \`OtpChallenge\`, \`ProviderConfig\`)
+- **Models**: Descriptive, domain-oriented (e.g., \`OtpChallenge\` not \`Challenge\`)
+
+### File Organization
+- Import statements at top, grouped by: standard library, third-party (fastapi, sqlalchemy), local (app.*)
+- No unused imports
+- Docstrings for public functions; minimal comments for non-obvious logic
+
+## Testing Guidelines
+
+### Test Structure
+- Test files live in \`otp_service/tests/\` with naming pattern \`test_<feature>.py\`
+- Use \`pytest\` fixtures defined in \`tests/conftest.py\` for common setup
+- Prefer focused, single-responsibility tests over monolithic test functions
+
+### Async Test Pattern
+\`\`\`python
+@pytest.mark.asyncio
+async def test_create_otp_challenge(db_session, redis_client):
+    """Test OTP challenge creation."""
+    result = await otp_service.create_challenge(
+        user_id="user-123",
+        session=db_session,
+        redis=redis_client
+    )
+    assert result.challenge_id is not None
+\`\`\`
+
+### Test Coverage Expectations
+- Add regression tests for every bug fix
+- Add tests for every migration or task flow change
+- Test both success and error paths (failed provider, quota exceeded, circuit breaker open)
+- Mock external services (SendGrid API) to avoid flaky tests
+
+## Database Migrations
+
+- Migrations are auto-generated via \`alembic revision --autogenerate\`
+- Always review generated migrations for correctness
+- Commit migrations with your code changes
+- Include schema change notes in PR descriptions
+
+## Configuration & Secrets
+
+- Copy \`otp_service/.env.example\` to \`otp_service/.env\` for local development
+- **Never commit \`.env\` or secret keys** to source control
+- Environment variables are loaded via \`pydantic_settings\` in \`app/config.py\`
+- Local ports must match \`docker-compose.yml\` (Postgres: 5433, Redis: 6380, RabbitMQ: 5673)
+
+## Commit & Pull Request Guidelines
+
+### Commit Messages
+- Use imperative mood and short prefixes: \`feat:\`, \`fix:\`, \`refactor:\`, \`test:\`, \`docs:\`, \`ci:\`
+- Examples:
+  - \`feat: add OTP provider fallback with circuit breaker\`
+  - \`fix: handle Redis connection timeout in retry dispatcher\`
+  - \`refactor: extract quota validation into policy service\`
+  - \`test: add regression test for provider failover\`
+
+### PR Requirements
+- Clear summary of changes and motivation
+- Note any schema changes (include \`alembic revision\` output)
+- Note any environment variable or configuration changes
+- Link related issues
+- Include example requests/responses for API changes
+
+## Key Dependencies
+
+- **FastAPI 0.110+**: Web framework
+- **SQLAlchemy 2.0+**: Async ORM
+- **Pydantic 2.6+**: Request/response validation
+- **Celery 5.3+**: Async task queue
+- **Redis 5.0+**: Caching and broker
+- **Alembic**: Database migrations
+- **Black/isort**: Code formatting
+- **Pytest 8.1+**: Testing (with asyncio support)
+
+## Debugging Tips
+
+- **Check database state**: Connect to Postgres at \`localhost:5433\` (user: \`app\`, password: \`password\`) to inspect OtpChallenge and OtpDeliveryAttempt records
+- **Monitor Redis**: Use \`redis-cli -p 6380\` to inspect cache keys and circuit breaker state
+- **Celery logs**: Worker logs show task execution; check for failed OTP retry attempts
+- **Request tracing**: Add logging in services to trace flow through routing → quota → delivery
+- **Pytest verbose mode**: \`pytest -vv\` shows full assertion diffs and test names
