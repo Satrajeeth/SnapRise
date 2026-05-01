@@ -929,3 +929,12 @@ Perfect! Here's your comprehensive implementation plan:
 ---
 
 This plan creates the foundation for Phase 6's actual retry logic while keeping the current implementation clean and testable.
+
+
+========================================================================================================
+
+For smtp email setup we need the following : 
+
+domain 
+DNS Config - SPF , DKIM , DMARC 
+

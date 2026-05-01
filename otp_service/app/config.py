@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     smtp_from_email: str = Field(default="no-reply@smtp.local", alias="SMTP_FROM_EMAIL")
     smtp_timeout_seconds: int = Field(default=10, alias="SMTP_TIMEOUT_SECONDS")
     smtp_provider_id: str = Field(default="smtp-default", alias="SMTP_PROVIDER_ID")
+    smtp_username: str | None = Field(default=None, alias="SMTP_USERNAME")
+    smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=False, alias="SMTP_USE_TLS")
+    smtp_use_ssl: bool = Field(default=False, alias="SMTP_USE_SSL")
+    smtp_fallback_enabled: bool = Field(default=False, alias="SMTP_FALLBACK_ENABLED")
 
     otp_code_length: int = Field(default=6, alias="OTP_CODE_LENGTH")
     otp_ttl_seconds: int = Field(default=600, alias="OTP_TTL_SECONDS")
