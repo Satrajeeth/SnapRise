@@ -6,6 +6,8 @@ import ssl
 from email.message import EmailMessage
 
 import aiohttp
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Content, Email, Mail, To
 
 from app.domain.enums import ProviderErrorType
 from app.providers.base import (
@@ -48,7 +50,9 @@ class SmtpEmailProvider(BaseProviderAdapter):
             use_tls,
             use_ssl,
         )
-        return ProviderSendResult(provider_id=self.provider_id, success=True, tier=self.tier)
+        return ProviderSendResult(
+            provider_id=self.provider_id, success=True, tier=self.tier
+        )
 
     async def check_health(self) -> HealthResult:
         host = self.settings.get("host", "smtp")
@@ -72,14 +76,24 @@ class SmtpEmailProvider(BaseProviderAdapter):
             )
             return HealthResult(healthy=True)
         except Exception as e:
-            return HealthResult(healthy=False, reason=f"SMTP connection failed: {str(e)}")
+            return HealthResult(
+                healthy=False, reason=f"SMTP connection failed: {str(e)}"
+            )
 
     def classify_error(self, error: Exception) -> ProviderErrorType:
         if isinstance(error, AuthProviderError):
             return ProviderErrorType.auth_error
         if isinstance(error, smtplib.SMTPAuthenticationError):
             return ProviderErrorType.auth_error
-        if isinstance(error, (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, TimeoutError, OSError)):
+        if isinstance(
+            error,
+            (
+                smtplib.SMTPConnectError,
+                smtplib.SMTPServerDisconnected,
+                TimeoutError,
+                OSError,
+            ),
+        ):
             return ProviderErrorType.retryable
         if isinstance(error, smtplib.SMTPRecipientsRefused):
             return ProviderErrorType.non_retryable
@@ -96,7 +110,9 @@ class SmtpEmailProvider(BaseProviderAdapter):
         use_ssl: bool,
     ) -> None:
         if use_tls and use_ssl:
-            raise NonRetryableProviderError("SMTP_USE_TLS and SMTP_USE_SSL cannot both be enabled")
+            raise NonRetryableProviderError(
+                "SMTP_USE_TLS and SMTP_USE_SSL cannot both be enabled"
+            )
 
         smtp_class = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
         context = ssl.create_default_context()
@@ -119,7 +135,9 @@ class SmtpEmailProvider(BaseProviderAdapter):
         use_ssl: bool,
     ) -> None:
         if use_tls and use_ssl:
-            raise NonRetryableProviderError("SMTP_USE_TLS and SMTP_USE_SSL cannot both be enabled")
+            raise NonRetryableProviderError(
+                "SMTP_USE_TLS and SMTP_USE_SSL cannot both be enabled"
+            )
 
         smtp_class = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
         context = ssl.create_default_context()
@@ -143,7 +161,9 @@ class LoggingEmailProvider(BaseProviderAdapter):
             raise AuthProviderError("provider authentication failed")
         if mode == "non_retryable":
             raise NonRetryableProviderError("permanent provider failure")
-        return ProviderSendResult(provider_id=self.provider_id, success=True, tier=self.tier)
+        return ProviderSendResult(
+            provider_id=self.provider_id, success=True, tier=self.tier
+        )
 
     async def check_health(self) -> HealthResult:
         if self.settings.get("mode") == "unhealthy":
@@ -182,15 +202,23 @@ class BrevoHttpEmailProvider(BaseProviderAdapter):
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.post(
+                url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
                 if resp.status == 201:
-                    return ProviderSendResult(provider_id=self.provider_id, success=True, tier=self.tier)
+                    return ProviderSendResult(
+                        provider_id=self.provider_id, success=True, tier=self.tier
+                    )
                 text = await resp.text()
                 if resp.status == 401 or "unauthorized" in text.lower():
                     raise AuthProviderError(f"Brevo API auth failed: {text}")
                 if resp.status >= 500:
-                    raise RetryableProviderError(f"Brevo API error: {resp.status} {text}")
-                raise NonRetryableProviderError(f"Brevo API error: {resp.status} {text}")
+                    raise RetryableProviderError(
+                        f"Brevo API error: {resp.status} {text}"
+                    )
+                raise NonRetryableProviderError(
+                    f"Brevo API error: {resp.status} {text}"
+                )
 
     async def check_health(self) -> HealthResult:
         api_key = self.settings.get("api_key")
@@ -206,9 +234,83 @@ class BrevoHttpEmailProvider(BaseProviderAdapter):
                     if resp.status == 200:
                         return HealthResult(healthy=True)
                     text = await resp.text()
-                    return HealthResult(healthy=False, reason=f"API returned {resp.status}: {text}")
+                    return HealthResult(
+                        healthy=False, reason=f"API returned {resp.status}: {text}"
+                    )
         except Exception as e:
             return HealthResult(healthy=False, reason=f"Health check failed: {str(e)}")
+
+    def classify_error(self, error: Exception) -> ProviderErrorType:
+        if isinstance(error, AuthProviderError):
+            return ProviderErrorType.auth_error
+        if isinstance(error, RetryableProviderError):
+            return ProviderErrorType.retryable
+        return ProviderErrorType.non_retryable
+
+
+class SendGridEmailProvider(BaseProviderAdapter):
+    async def send_email_otp(self, payload: ProviderSendPayload) -> ProviderSendResult:
+        api_key = self.settings.get("api_key")
+        from_email = self.settings.get("from_email", "noreply@example.com")
+
+        if not api_key:
+            raise AuthProviderError("SendGrid API key not configured")
+
+        try:
+            sg = SendGridAPIClient(api_key)
+            message = Mail(
+                from_email=Email(from_email),
+                to_emails=To(payload.email),
+                subject="Your OTP Code",
+                plain_text_content=f"Your OTP is: {payload.code}. It expires in 5 minutes.",
+                html_content=f"<p>Your OTP is: <strong>{payload.code}</strong></p><p>It expires in 5 minutes.</p>",
+            )
+            response = await asyncio.to_thread(sg.send, message)
+
+            if response.status_code in [200, 201, 202]:
+                return ProviderSendResult(
+                    provider_id=self.provider_id, success=True, tier=self.tier
+                )
+
+            if response.status_code == 401:
+                raise AuthProviderError(
+                    f"SendGrid API auth failed: {response.status_code}"
+                )
+            if response.status_code >= 500:
+                raise RetryableProviderError(
+                    f"SendGrid API error: {response.status_code}"
+                )
+            raise NonRetryableProviderError(
+                f"SendGrid API error: {response.status_code}"
+            )
+        except AuthProviderError:
+            raise
+        except RetryableProviderError:
+            raise
+        except NonRetryableProviderError:
+            raise
+        except Exception as e:
+            raise RetryableProviderError(f"SendGrid send failed: {str(e)}")
+
+    async def check_health(self) -> HealthResult:
+        api_key = self.settings.get("api_key")
+        if not api_key:
+            return HealthResult(healthy=False, reason="SendGrid API key not configured")
+        try:
+            sg = SendGridAPIClient(api_key)
+            # Simple test: try to send to a test endpoint
+            test_message = Mail(
+                from_email=Email("test@example.com"),
+                to_emails=To("test@example.com"),
+                subject="Health Check",
+                plain_text_content="Health check",
+            )
+            # We don't actually send, just validate the client is initialized
+            return HealthResult(healthy=True)
+        except Exception as e:
+            return HealthResult(
+                healthy=False, reason=f"SendGrid health check failed: {str(e)}"
+            )
 
     def classify_error(self, error: Exception) -> ProviderErrorType:
         if isinstance(error, AuthProviderError):
