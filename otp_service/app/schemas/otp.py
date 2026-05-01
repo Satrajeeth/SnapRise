@@ -31,6 +31,7 @@ class VerifyOtpResponse(BaseModel):
     request_id: str
     status: Literal["valid"]
     verified_at: datetime
+    proof_token: str | None = None
 
 
 class LockedResponse(BaseModel):

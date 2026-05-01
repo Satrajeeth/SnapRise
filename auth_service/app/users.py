@@ -1,22 +1,62 @@
 import uuid
+import logging
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends, Request
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, models
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions, models
 from fastapi_users.authentication import (
     AuthenticationBackend,
     BearerTransport,
     JWTStrategy,
 )
+from fastapi_users.jwt import generate_jwt
 from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 
 from app.config import get_settings
 from app.db import User, get_user_db
 
+logger = logging.getLogger(__name__)
+
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     async def on_after_register(self, user: User, request: Request | None = None) -> None:
-        print(f"User {user.id} has registered.")
+        logger.info("User %s has registered.", user.id)
+
+    async def on_after_forgot_password(
+        self,
+        user: User,
+        token: str,
+        request: Request | None = None,
+    ) -> None:
+        logger.info("User %s requested a password reset. Token: %s", user.id, token)
+
+    async def on_after_reset_password(
+        self,
+        user: User,
+        request: Request | None = None,
+    ) -> None:
+        logger.info("User %s has reset their password.", user.id)
+
+    async def forgot_password_with_token(
+        self,
+        user: User,
+        request: Request | None = None,
+    ) -> str:
+        if not user.is_active:
+            raise exceptions.UserInactive()
+
+        token_data = {
+            "sub": str(user.id),
+            "password_fgpt": self.password_helper.hash(user.hashed_password),
+            "aud": self.reset_password_token_audience,
+        }
+        token = generate_jwt(
+            token_data,
+            self.reset_password_token_secret,
+            self.reset_password_token_lifetime_seconds,
+        )
+        await self.on_after_forgot_password(user, token, request)
+        return token
 
 
 async def get_user_manager(

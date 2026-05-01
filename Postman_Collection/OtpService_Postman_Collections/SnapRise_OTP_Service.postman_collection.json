@@ -139,7 +139,23 @@
                 "verify"
               ]
             },
-            "description": "Verifies the OTP code you received by email."
+            "description": "Verifies the OTP code you received by email.",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "try {",
+                    "  const json = pm.response.json();",
+                    "  if (json && json.proof_token) {",
+                    "    pm.environment.set('proof_token', json.proof_token);",
+                    "  }",
+                    "} catch (e) {}"
+                  ]
+                }
+              }
+            ]
           }
         }
       ]

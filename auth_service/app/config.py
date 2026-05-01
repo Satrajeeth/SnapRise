@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -10,6 +11,19 @@ class Settings(BaseSettings):
     allowed_origins: str = "*"
 
     database_url: str = "postgresql+asyncpg://app:password@snaprise_postgres:5432/auth_db"
+    reset_password_redirect_url: str = "http://localhost:3000/reset-password"
+    password_reset_delivery_mode: Literal["console", "smtp"] = "console"
+
+    smtp_host: str = "smtp"
+    smtp_port: int = 25
+    smtp_from_email: str = "no-reply@snaprise.local"
+    smtp_timeout_seconds: int = 10
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = False
+    smtp_use_ssl: bool = False
+
+    otp_proof_secret: str = "secret"
 
     model_config = SettingsConfigDict(
         env_file=".env",
