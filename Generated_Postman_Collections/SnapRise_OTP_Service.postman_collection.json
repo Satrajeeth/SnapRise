@@ -1,0 +1,148 @@
+{
+  "info": {
+    "_postman_id": "1fd6f5a9-2cc6-4e44-a9f2-6d13e31df8d0",
+    "name": "SnapRise OTP Service",
+    "description": "Collection for the SnapRise OTP service. Includes health check plus OTP send, resend, and verify flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8001/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8001",
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Checks whether the API process is up."
+          }
+        }
+      ]
+    },
+    {
+      "name": "OTP",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"{{purpose}}\",\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"idempotency_key\": \"{{idempotency_key}}\",\n  \"locale\": \"{{locale}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8001/v1/otp/send",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8001",
+              "path": [
+                "v1",
+                "otp",
+                "send"
+              ]
+            },
+            "description": "Triggers an OTP send. The response should include the provider used, such as brevo-smtp if Brevo was selected.",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "try {",
+                    "  const json = pm.response.json();",
+                    "  if (json && json.request_id) {",
+                    "    pm.environment.set('last_request_id', json.request_id);",
+                    "  }",
+                    "  if (json && json.provider_id) {",
+                    "    pm.environment.set('last_provider_id', json.provider_id);",
+                    "  }",
+                    "} catch (e) {}"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"{{purpose}}\",\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"idempotency_key\": \"{{resend_idempotency_key}}\",\n  \"locale\": \"{{locale}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8001/v1/otp/resend",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8001",
+              "path": [
+                "v1",
+                "otp",
+                "resend"
+              ]
+            },
+            "description": "Triggers a resend flow. This uses the same request body shape as Send OTP."
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"{{purpose}}\",\n  \"code\": \"{{otp_code}}\",\n  \"tenant_id\": \"{{tenant_id}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8001/v1/otp/verify",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8001",
+              "path": [
+                "v1",
+                "otp",
+                "verify"
+              ]
+            },
+            "description": "Verifies the OTP code you received by email."
+          }
+        }
+      ]
+    }
+  ]
+}

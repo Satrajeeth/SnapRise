@@ -273,8 +273,33 @@ class OtpService:
 
     async def _get_provider_configs(self, session: AsyncSession) -> list[ProviderConfig]:
         result = await session.execute(select(ProviderConfig).where(ProviderConfig.enabled.is_(True)))
-        return list(result.scalars().all())
+        providers = list(result.scalars().all())
+        if self.settings.smtp_fallback_enabled:
+            providers.append(self._default_smtp_provider_config())
+        return providers
 
     @staticmethod
     def _status_code_for(status_text: str) -> int:
         return status.HTTP_200_OK if status_text == "sent" else status.HTTP_202_ACCEPTED
+
+    def _default_smtp_provider_config(self) -> ProviderConfig:
+        return ProviderConfig(
+            provider_id=self.settings.smtp_provider_id,
+            tier=ProviderTier.fallback,
+            enabled=True,
+            weight=1,
+            priority=10_000,
+            daily_limit=0,
+            monthly_limit=0,
+            settings_json={
+                "adapter": "app.providers.adapters.SmtpEmailProvider",
+                "host": self.settings.smtp_host,
+                "port": self.settings.smtp_port,
+                "from_email": self.settings.smtp_from_email,
+                "timeout_seconds": self.settings.smtp_timeout_seconds,
+                "username": self.settings.smtp_username,
+                "password": self.settings.smtp_password,
+                "use_tls": self.settings.smtp_use_tls,
+                "use_ssl": self.settings.smtp_use_ssl,
+            },
+        )
