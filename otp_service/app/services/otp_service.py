@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import timedelta
 
+import jwt
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,8 +139,25 @@ class OtpService:
         challenge.status = ChallengeStatus.verified
         challenge.verified_at = now
         challenge.next_allowed_at = None
+
+        proof_token = jwt.encode(
+            {
+                "sub": request.email,
+                "purpose": request.purpose.value,
+                "tenant_id": request.tenant_id,
+                "exp": int(time.time()) + self.settings.otp_proof_lifetime_seconds,
+            },
+            self.settings.otp_proof_secret,
+            algorithm="HS256",
+        )
+
         self.audit_logger.log("otp.verify", email=request.email, tenant_id=request.tenant_id, status="valid")
-        return VerifyOtpResponse(request_id=str(challenge.id), status="valid", verified_at=now)
+        return VerifyOtpResponse(
+            request_id=str(challenge.id),
+            status="valid",
+            verified_at=now,
+            proof_token=proof_token,
+        )
 
     async def process_retry_job(self, session: AsyncSession, job_id: str) -> dict:
         result = await session.execute(select(OtpRetryJob).where(OtpRetryJob.id == job_id))

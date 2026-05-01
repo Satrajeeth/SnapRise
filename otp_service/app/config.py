@@ -62,6 +62,11 @@ class Settings(BaseSettings):
         alias="PROVIDER_CIRCUIT_OPEN_SECONDS",
     )
 
+    otp_proof_secret: str = Field(default="secret", alias="OTP_PROOF_SECRET")
+    otp_proof_lifetime_seconds: int = Field(
+        default=900, alias="OTP_PROOF_LIFETIME_SECONDS"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,

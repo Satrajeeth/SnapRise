@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+AUTH_DATABASE_NAME=${AUTH_DATABASE_NAME:-auth_db}
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+  SELECT 'CREATE DATABASE "${AUTH_DATABASE_NAME}"'
+  WHERE NOT EXISTS (
+    SELECT FROM pg_database WHERE datname = '${AUTH_DATABASE_NAME}'
+  )\gexec
+EOSQL

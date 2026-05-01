@@ -10,6 +10,30 @@
       "name": "Auth",
       "item": [
         {
+          "name": "Check Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/check-email?email={{email}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "check-email"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{email}}"
+                }
+              ]
+            },
+            "description": "Check if a user with this email exists."
+          }
+        },
+        {
           "name": "Register",
           "request": {
             "method": "POST",
@@ -21,7 +45,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"is_active\": true,\n  \"is_superuser\": false,\n  \"is_verified\": false\n}"
+              "raw": "{\n  \"user_create\": {\n    \"email\": \"{{email}}\",\n    \"password\": \"{{password}}\",\n    \"is_active\": true,\n    \"is_superuser\": false,\n    \"is_verified\": false\n  },\n  \"proof_token\": \"{{proof_token}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
@@ -33,7 +57,7 @@
                 "register"
               ]
             },
-            "description": "Create a new user."
+            "description": "Create a new user with proof token from OTP service."
           },
           "event": [
             {
@@ -149,7 +173,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"proof_token\": \"{{proof_token}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/forgot-password",
@@ -161,7 +185,7 @@
                 "forgot-password"
               ]
             },
-            "description": "Request reset token; token is typically visible in app logs in this example setup."
+            "description": "Request reset token requires proof token from OTP service."
           }
         },
         {
@@ -189,60 +213,6 @@
               ]
             },
             "description": "Reset password using token from forgot-password flow."
-          }
-        },
-        {
-          "name": "Request Verify Token",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/request-verify-token",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "request-verify-token"
-              ]
-            },
-            "description": "Request email verification token; in local example it is usually logged."
-          }
-        },
-        {
-          "name": "Verify User",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"{{verify_token}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/verify",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "verify"
-              ]
-            },
-            "description": "Verify user account with token from request-verify-token flow."
           }
         }
       ]
@@ -433,11 +403,11 @@
       "value": ""
     },
     {
-      "key": "verify_token",
+      "key": "reset_token",
       "value": ""
     },
     {
-      "key": "reset_token",
+      "key": "proof_token",
       "value": ""
     }
   ]

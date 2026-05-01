@@ -938,3 +938,12 @@ For smtp email setup we need the following :
 domain 
 DNS Config - SPF , DKIM , DMARC 
 
+https://in.pinterest.com/pin/1031183645931291993/
+
+https://in.pinterest.com/pin/302937512433752648/
+
+https://dribbble.com/shots/13395848-Sign-up-Login-UI
+
+https://dribbble.com/shots/26947134-Modern-Authentication-UI-Login-Signup-Password-Reset-Flow
+
+https://www.awwwards.com/inspiration/3d-technology-website-tenbin-labs
