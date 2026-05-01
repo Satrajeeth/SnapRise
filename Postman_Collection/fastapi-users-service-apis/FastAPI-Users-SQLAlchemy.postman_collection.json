@@ -10,6 +10,30 @@
       "name": "Auth",
       "item": [
         {
+          "name": "Check Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/check-email?email={{email}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "check-email"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{email}}"
+                }
+              ]
+            },
+            "description": "Check if a user with this email exists."
+          }
+        },
+        {
           "name": "Register",
           "request": {
             "method": "POST",

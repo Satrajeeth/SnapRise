@@ -1,12 +1,34 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi_users import exceptions
-from pydantic import EmailStr
+from pydantic import BaseModel, EmailStr
 
 from app.schemas import UserCreate, UserRead
 from app.users import UserManager, get_user_manager
 from app.api.dependencies import validate_proof_token
 
 router = APIRouter()
+
+
+class EmailCheckResponse(BaseModel):
+    exists: bool
+
+
+@router.get(
+    "/check-email",
+    response_model=EmailCheckResponse,
+    name="auth:check_email",
+    summary="Check if a user with this email exists",
+)
+async def check_email(
+    email: EmailStr = Query(...),
+    user_manager: UserManager = Depends(get_user_manager),
+) -> EmailCheckResponse:
+    try:
+        await user_manager.get_by_email(email)
+        return EmailCheckResponse(exists=True)
+    except exceptions.UserNotExists:
+        return EmailCheckResponse(exists=False)
+
 
 @router.post(
     "/register",
