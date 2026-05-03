@@ -1,0 +1,25 @@
+services:
+  # ----------------------
+  # BOARD API
+  # ----------------------
+  board_api:
+    build: .
+    container_name: board_api
+    restart: on-failure
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${BOARD_DATABASE_URL:-postgresql+asyncpg://app:password@snaprise_postgres:5432/board_db}
+      SYNC_DATABASE_URL: ${BOARD_SYNC_DATABASE_URL:-postgresql+psycopg2://app:password@snaprise_postgres:5432/board_db}
+    ports:
+      - "8002:8000"
+    networks:
+      - default
+      - snaprise_shared
+
+networks:
+  default:
+    name: board_service_default
+  snaprise_shared:
+    external: true
+    name: snaprise_shared
