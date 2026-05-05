@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     api_prefix: str = Field(default="/v1", alias="API_PREFIX")
     allowed_origins: List[str] = Field(default=["*"], alias="ALLOWED_ORIGINS")
 
+    #Security
+    #Default key for development only (Fernet 32-byte base64)
+    encryption_key: str = Field(
+        default="3-yHjX8W-k-q_M-S6kY_Uv_f_S6-S_L_Z-Y8-k-X8-I=",
+        alias="ENCRYPTION_KEY"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,

@@ -2,11 +2,12 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.domain.enums import EncryptionStatus
 
 
 class Task(Base):
@@ -17,6 +18,10 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String(255), index=True)
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
+
+    encryption_status: Mapped[EncryptionStatus] = mapped_column(
+        Enum(EncryptionStatus), default=EncryptionStatus.DISABLED
+    )
 
     # JSONB fields for dynamic data
     settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
