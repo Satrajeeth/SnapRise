@@ -68,7 +68,7 @@ async def _make_request(self, url, headers, payload) -> Optional[str]:
     try: 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=payload, timeout=30) as response:
-                if response.status == 200:
+                if response.status != 200:
                     error_text = await response.text()
                     logger.error(f"AI API error({response.status}): {error_text}")
                     return None
@@ -76,7 +76,7 @@ async def _make_request(self, url, headers, payload) -> Optional[str]:
                 data = await response.json()
                 return data["choices"][0]["message"]["content"]
     except Exception as e:
-        logger.error(f"AI service request failed: {str(e)}")
+        logger.error(f"AI service request failed: {e}")
         return None
     
 async def summarize_task(self, title: str, content: Optional[str]) -> Optional[str]:
