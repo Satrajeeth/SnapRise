@@ -36,3 +36,4 @@ class Board(Base):
 
     # Relationships
     columns: Mapped[List["Column"]] = relationship("Column", back_populates="board", cascade="all, delete-orphan")
+    members: Mapped[List["BoardMember"]] = relationship("BoardMember", back_populates="board", cascade="all, delete-orphan")

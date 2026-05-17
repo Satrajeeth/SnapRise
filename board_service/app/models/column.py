@@ -16,6 +16,7 @@ class Column(Base):
     board_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("boards.id"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     position: Mapped[int] = mapped_column(Integer, default=0)
+    wip_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # JSONB fields for dynamic data
     settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
@@ -29,3 +30,4 @@ class Column(Base):
     # Relationships
     board: Mapped["Board"] = relationship("Board", back_populates="columns")
     tasks: Mapped[List["Task"]] = relationship("Task", back_populates="column", cascade="all, delete-orphan")
+    access_rules: Mapped[List["ColumnAccess"]] = relationship("ColumnAccess", back_populates="column", cascade="all, delete-orphan")

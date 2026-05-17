@@ -12,3 +12,14 @@ class EncryptionStatus(str, Enum):
     DISABLED = "disabled"
     ENABLED = "enabled"
     PENDING = "pending"
+
+
+class BoardRole(str, Enum):
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
+class AccessType(str, Enum):
+    READ = "read"
+    WRITE = "write"
