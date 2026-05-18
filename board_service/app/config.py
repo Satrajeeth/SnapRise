@@ -25,6 +25,9 @@ class Settings(BaseSettings):
         alias="ENCRYPTION_KEY"
     )
 
+    jwt_secret: str = Field(default="snaprise-dev-secret", alias="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
