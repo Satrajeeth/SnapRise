@@ -22,6 +22,7 @@ app.add_middleware(
 # Include routers
 app.include_router(api_router, prefix=settings.api_prefix)
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": settings.app_name}

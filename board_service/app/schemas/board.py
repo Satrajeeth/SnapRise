@@ -3,7 +3,25 @@ from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import LifecycleStage, EncryptionStatus
+from app.domain.enums import LifecycleStage, EncryptionStatus, BoardRole
+
+class BoardMemberBase(BaseModel):
+    user_id: UUID
+    role: BoardRole = BoardRole.VIEWER
+
+class BoardMemberCreate(BoardMemberBase):
+    pass
+
+class BoardMemberUpdate(BaseModel):
+    role: BoardRole
+
+class BoardMemberResponse(BoardMemberBase):
+    id: UUID
+    board_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 class BoardBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)

@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import get_db_session
-from app.schemas.board import Board, BoardCreate, BoardUpdate
+from app.schemas.board import (
+    Board, BoardCreate, BoardUpdate,
+    BoardMemberResponse, BoardMemberCreate, BoardMemberUpdate
+)
 from app.schemas.column import Column, ColumnCreate, ColumnUpdate
 from app.schemas.task import Task, TaskCreate, TaskUpdate
 from app.schemas.subtask import Subtask, SubtaskCreate, SubtaskUpdate
@@ -13,7 +16,7 @@ from app.schemas.responses import BoardDetailed
 from app.services.board_ops import BoardOps
 from app.services.ai_service import get_ai_service
 from app.services.security_manager import get_security_manager
-from app.api.v1.dependencies import(
+from app.api.v1.dependencies import (
     get_current_user_id,
     require_viewer,
     require_owner,
@@ -55,7 +58,53 @@ async def update_board(board_id: UUID, board_in: BoardUpdate, db: AsyncSession =
 async def delete_board(board_id: UUID, db: AsyncSession = Depends(get_db_session), _role = Depends(require_owner)):
     if not await BoardOps.delete_board(db, board_id):
         raise HTTPException(status_code=404, detail="Board not found")
-    
+
+# Board Members
+
+@router.get("/boards/{board_id}/members", response_model=List[BoardMemberResponse])
+async def get_board_members(
+    board_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    await require_viewer(board_id, user_id, db)
+    return await BoardOps.get_board_members(db, board_id)
+
+@router.post("/boards/{board_id}/members", response_model=BoardMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_board_member(
+    board_id: UUID,
+    member_in: BoardMemberCreate,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    await require_owner(board_id, user_id, db)
+    return await BoardOps.add_board_member(db, board_id, member_in.user_id, member_in.role)
+
+@router.put("/boards/{board_id}/members/{target_user_id}", response_model=BoardMemberResponse)
+async def update_board_member(
+    board_id: UUID,
+    target_user_id: UUID,
+    member_in: BoardMemberUpdate,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    await require_owner(board_id, user_id, db)
+    member = await BoardOps.update_board_member(db, board_id, target_user_id, member_in.role)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return member
+
+@router.delete("/boards/{board_id}/members/{target_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_board_member(
+    board_id: UUID,
+    target_user_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    await require_owner(board_id, user_id, db)
+    if not await BoardOps.remove_board_member(db, board_id, target_user_id):
+        raise HTTPException(status_code=404, detail="Member not found")
+
 #Columns 
 
 @router.post("/columns", response_model=Column, status_code=status.HTTP_201_CREATED)
@@ -136,6 +185,7 @@ async def delete_subtask(subtask_id: UUID, db: AsyncSession = Depends(get_db_ses
 async def analyze_task_ai(task_id: UUID, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_task(task_id, db)
     await require_viewer(board_id, user_id, db)
+
     # 1. Fetch task with full context (including parents for AI permission check)
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -189,6 +239,7 @@ async def analyze_task_ai(task_id: UUID, db: AsyncSession = Depends(get_db_sessi
 async def classify_task_ai(task_id: UUID, db: AsyncSession = Depends(get_db_session),user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_task(task_id, db)
     await require_viewer(board_id, user_id, db)
+
     #1. Fetch task with board context 
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload

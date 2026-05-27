@@ -23,6 +23,7 @@ class BoardOps:
         query = select(Board)
         if user_id:
             query = query.join(BoardMember).where(BoardMember.user_id == user_id)
+        
         result = await db.execute(query)
         boards = result.scalars().all()
         for board in boards:
@@ -272,4 +273,59 @@ class BoardOps:
         if not subtask:
             return False
         await db.delete(subtask)
+        return True
+
+    # Member Ops
+    @staticmethod
+    async def get_board_members(db: AsyncSession, board_id: UUID):
+        from app.models.board_member import BoardMember
+        result = await db.execute(
+            select(BoardMember).where(BoardMember.board_id == board_id)
+        )
+        return result.scalars().all()
+
+    @staticmethod
+    async def add_board_member(db: AsyncSession, board_id: UUID, user_id: UUID, role: str):
+        from app.models.board_member import BoardMember
+        from app.domain.enums import BoardRole
+        
+        # Check if already a member
+        result = await db.execute(
+            select(BoardMember).where(BoardMember.board_id == board_id, BoardMember.user_id == user_id)
+        )
+        if result.scalar_one_or_none():
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="User is already a member of this board")
+            
+        member = BoardMember(board_id=board_id, user_id=user_id, role=role)
+        db.add(member)
+        await db.flush()
+        return member
+
+    @staticmethod
+    async def update_board_member(db: AsyncSession, board_id: UUID, user_id: UUID, role: str):
+        from app.models.board_member import BoardMember
+        result = await db.execute(
+            select(BoardMember).where(BoardMember.board_id == board_id, BoardMember.user_id == user_id)
+        )
+        member = result.scalar_one_or_none()
+        if not member:
+            return None
+            
+        member.role = role
+        await db.flush()
+        return member
+
+    @staticmethod
+    async def remove_board_member(db: AsyncSession, board_id: UUID, user_id: UUID):
+        from app.models.board_member import BoardMember
+        result = await db.execute(
+            select(BoardMember).where(BoardMember.board_id == board_id, BoardMember.user_id == user_id)
+        )
+        member = result.scalar_one_or_none()
+        if not member:
+            return False
+            
+        # Prevent removing the last owner? (Optional logic)
+        await db.delete(member)
         return True
