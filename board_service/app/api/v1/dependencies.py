@@ -52,8 +52,8 @@ async def get_board_role(
             BoardMember.board_id == board_id,
             BoardMember.user_id == user_id
         )
-        return result.scalar_one_or_none()
     )
+    return result.scalar_one_or_none()
 
 class BoardPermissionChecker:
     def __init__(self, required_roles: list[BoardRole]):
@@ -75,9 +75,9 @@ class BoardPermissionChecker:
         return role
 
  # Specific role requirements
-require_owner = BoardPermisssionChecker([BoardRole.OWNER])
-require_editor = BoardPermisssionChecker([BoardRole.OWNER, BoardRole.EDITOR])
-require_viewer = BoardPermisssionChecker([BoardRole.OWNER, BoardRole.EDITOR, BoardRole.VIEWER])
+require_owner = BoardPermissionChecker([BoardRole.OWNER])
+require_editor = BoardPermissionChecker([BoardRole.OWNER, BoardRole.EDITOR])
+require_viewer = BoardPermissionChecker([BoardRole.OWNER, BoardRole.EDITOR, BoardRole.VIEWER])
 
 async def get_board_id_from_column(column_id: UUID, db: AsyncSession) -> UUID:
     result = await db.execute(select(Column.board_id).where(Column.id == column_id))

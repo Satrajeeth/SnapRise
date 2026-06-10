@@ -1,3 +1,18 @@
+# --- General ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.log
+*.bak
+*.swp
+*.swo
+
 # --- Python ---
 __pycache__/
 *.py[cod]
@@ -19,14 +34,15 @@ dist/
 *.egg-info/
 .mypy_cache/
 .ruff_cache/
-fastapi-users/
+.pyre/
+.pytype/
+celerybeat-schedule
+celerybeat.pid
 
 # --- Node.js / Frontend ---
 node_modules/
 .next/
 out/
-build/
-dist/
 .npm
 .yarn/
 !.yarn/patches
@@ -36,45 +52,43 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 .vercel/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.prettiercache
 
 # --- Environment / Secrets ---
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 *.pem
 *.key
 secrets.json
-
-# --- OS Specific ---
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+.netrc
 
 # --- IDEs / Editors ---
 .vscode/
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
 .idea/
-*.swp
-*.swo
+*.iws
 .project
 .pydevproject
 .settings/
+*.sublime-project
+*.sublime-workspace
 
 # --- Docker / Databases ---
-*/pgdata/
-*/db_data/
+**/pgdata/
+**/db_data/
+**/redis_data/
 docker-compose.override.yml
 
-# --- Misc ---
-.pytest_cache/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+# --- Gemini CLI ---
+.gemini/
+.antigravitycli/
+
+# --- Project Specific ---
+fastapi-users/

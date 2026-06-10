@@ -36,3 +36,9 @@ class Task(Base):
     # Relationships
     column: Mapped["Column"] = relationship("Column", back_populates="tasks")
     subtasks: Mapped[List["Subtask"]] = relationship("Subtask", back_populates="task", cascade="all, delete-orphan")
+    source_links: Mapped[List["TaskLink"]] = relationship(
+		"TaskLink", foreign_keys="TaskLink.source_task_id", back_populates="source_task", cascade="all, delete-orphan"
+	)
+    target_links: Mapped[List["TaskLink"]] = relationship(
+		"TaskLink", foreign_keys="TaskLink.target_task_id", back_populates="target_task", cascade=" all, delete-orphan"
+	)

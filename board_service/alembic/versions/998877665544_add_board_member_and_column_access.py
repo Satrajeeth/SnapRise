@@ -19,18 +19,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create enums explicitly
-    boardrole = postgresql.ENUM('owner', 'editor', 'viewer', name='boardrole')
-    boardrole.create(op.get_bind(), checkfirst=True)
-    accesstype = postgresql.ENUM('read', 'write', name='accesstype')
-    accesstype.create(op.get_bind(), checkfirst=True)
+    # Ensure types exist (robust check)
+    op.execute("DO $$ BEGIN CREATE TYPE boardrole AS ENUM ('owner', 'editor', 'viewer'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE accesstype AS ENUM ('read', 'write'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    
+    # Use postgresql.ENUM with create_type=False to avoid automatic creation attempts
+    boardrole = postgresql.ENUM('owner', 'editor', 'viewer', name='boardrole', create_type=False)
+    accesstype = postgresql.ENUM('read', 'write', name='accesstype', create_type=False)
 
     # Create board_members table
     op.create_table('board_members',
         sa.Column('id', sa.UUID(), nullable=False),
         sa.Column('board_id', sa.UUID(), nullable=False),
         sa.Column('user_id', sa.UUID(), nullable=False),
-        sa.Column('role', sa.Enum('owner', 'editor', 'viewer', name='boardrole'), nullable=False),
+        sa.Column('role', boardrole, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.ForeignKeyConstraint(['board_id'], ['boards.id'], ),
@@ -44,8 +46,8 @@ def upgrade() -> None:
         sa.Column('id', sa.UUID(), nullable=False),
         sa.Column('column_id', sa.UUID(), nullable=False),
         sa.Column('user_id', sa.UUID(), nullable=True),
-        sa.Column('role_restriction', sa.Enum('owner', 'editor', 'viewer', name='boardrole'), nullable=True),
-        sa.Column('access_type', sa.Enum('read', 'write', name='accesstype'), nullable=False),
+        sa.Column('role_restriction', boardrole, nullable=True),
+        sa.Column('access_type', accesstype, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.ForeignKeyConstraint(['column_id'], ['columns.id'], ),
@@ -62,7 +64,3 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_board_members_user_id'), table_name='board_members')
     op.drop_index(op.f('ix_board_members_board_id'), table_name='board_members')
     op.drop_table('board_members')
-    
-    # Drop enums
-    postgresql.ENUM(name='accesstype').drop(op.get_bind(), checkfirst=True)
-    postgresql.ENUM(name='boardrole').drop(op.get_bind(), checkfirst=True)

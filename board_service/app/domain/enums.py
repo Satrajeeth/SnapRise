@@ -23,3 +23,8 @@ class BoardRole(str, Enum):
 class AccessType(str, Enum):
     READ = "read"
     WRITE = "write"
+
+class LinkType(str, Enum):
+    BLOCKS = "blocks"
+    IS_BLOCKED_BY = "is_blocked_by"
+    RELATES_TO = "relates_to"
