@@ -12,7 +12,8 @@ from app.schemas.board import (
 from app.schemas.column import Column, ColumnCreate, ColumnUpdate
 from app.schemas.task import Task, TaskCreate, TaskUpdate
 from app.schemas.subtask import Subtask, SubtaskCreate, SubtaskUpdate
-from app.schemas.responses import BoardDetailed 
+from app.schemas.task_link import TaskLink, TaskLinkCreate
+from app.schemas.responses import BoardDetailed, TaskDetailed
 from app.services.board_ops import BoardOps
 from app.services.ai_service import get_ai_service
 from app.services.security_manager import get_security_manager
@@ -177,7 +178,14 @@ async def delete_subtask(subtask_id: UUID, db: AsyncSession = Depends(get_db_ses
     if not await BoardOps.delete_subtask(db, subtask_id):
         raise HTTPException(status_code=404, detail="Subtask not found")
 
-
+@router.get("/tasks/{task_id}", response_model=TaskDetailed)
+async def get_task(task_id: UUID, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
+    board_id = await get_board_id_from_task(task_id, db)
+    await require_viewer(board_id, user_id, db)
+    task = await BoardOps.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
 #AI Operations
 
@@ -274,4 +282,41 @@ async def classify_task_ai(task_id: UUID, db: AsyncSession = Depends(get_db_sess
         "suggested_column": suggested_column,
         "available_columns": column_names
     }
+
+# Task Links
+
+@router.post("/tasks/{task_id}/links", response_model=TaskLink, status_code=status.HTTP_201_CREATED)
+async def create_task_link(
+    task_id: UUID,
+    link_in: TaskLinkCreate,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    # Check permissions for source task
+    source_board_id = await get_board_id_from_task(task_id, db)
+    await require_editor(source_board_id, user_id, db)
+    
+    # Check permissions for target task (must be at least viewer)
+    target_board_id = await get_board_id_from_task(link_in.target_task_id, db)
+    await require_viewer(target_board_id, user_id, db)
+    
+    return await BoardOps.create_task_link(db, task_id, link_in)
+
+@router.delete("/tasks/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_link(
+    link_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    from app.models.task_link import TaskLink as TaskLinkModel
+    link = await db.get(TaskLinkModel, link_id)
+    if not link:
+        raise HTTPException(status_code=404, detail="Link not found")
+        
+    # Check permissions for source task (must be editor to delete link)
+    board_id = await get_board_id_from_task(link.source_task_id, db)
+    await require_editor(board_id, user_id, db)
+    
+    if not await BoardOps.delete_task_link(db, link_id):
+        raise HTTPException(status_code=404, detail="Link not found")
 

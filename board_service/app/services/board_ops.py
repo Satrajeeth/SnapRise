@@ -13,6 +13,7 @@ from app.schemas.column import ColumnCreate, ColumnUpdate
 from app.schemas.task import TaskCreate, TaskUpdate
 from app.schemas.subtask import SubtaskCreate, SubtaskUpdate
 from app.services.security_manager import get_security_manager
+from app.domain.enums import EncryptionStatus
 
 security_manager = get_security_manager()
 
@@ -246,6 +247,35 @@ class BoardOps:
         await db.delete(task)
         return True
     
+    @staticmethod
+    async def get_task(db: AsyncSession, task_id: UUID) -> Optional[Task]:
+        from sqlalchemy.orm import selectinload
+        result = await db.execute(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(
+                selectinload(Task.subtasks),
+                selectinload(Task.source_links),
+                selectinload(Task.target_links)
+            )
+        )
+        task = result.scalar_one_or_none()
+        if task:
+            # Fetch Board for encryption
+            board_result = await db.execute(
+                select(Board)
+                .join(Column)
+                .where(Column.id == task.column_id)
+            )
+            board = board_result.scalar()
+            board_enc = board.encryption_status if board else EncryptionStatus.DISABLED
+            security_manager.process_task_after_load(task, board_enc)
+            
+            # Combine links for the schema
+            task.links = task.source_links + task.target_links
+            
+        return task
+    
     #Subtask Ops
     @staticmethod
     async def create_subtask(db: AsyncSession, subtask_in: SubtaskCreate) -> SubtaskModel:
@@ -274,6 +304,54 @@ class BoardOps:
             return False
         await db.delete(subtask)
         return True
+
+    # Task Link Ops
+    @staticmethod
+    async def create_task_link(db: AsyncSession, source_task_id: UUID, link_in: 'TaskLinkCreate') -> 'TaskLinkModel':
+        from app.models.task_link import TaskLink as TaskLinkModel
+        # Check if link already exists
+        result = await db.execute(
+            select(TaskLinkModel).where(
+                TaskLinkModel.source_task_id == source_task_id,
+                TaskLinkModel.target_task_id == link_in.target_task_id,
+                TaskLinkModel.link_type == link_in.link_type
+            )
+        )
+        if result.scalar_one_or_none():
+             from fastapi import HTTPException
+             raise HTTPException(status_code=400, detail="Link already exists")
+        
+        link = TaskLinkModel(
+            source_task_id=source_task_id,
+            target_task_id=link_in.target_task_id,
+            link_type=link_in.link_type
+        )
+        db.add(link)
+        await db.flush()
+        return link
+
+    @staticmethod
+    async def delete_task_link(db: AsyncSession, link_id: UUID) -> bool:
+        from app.models.task_link import TaskLink as TaskLinkModel
+        link = await db.get(TaskLinkModel, link_id)
+        if not link:
+            return False
+        await db.delete(link)
+        return True
+    
+    @staticmethod
+    async def get_task_links(db: AsyncSession, task_id: UUID):
+        from app.models.task_link import TaskLink as TaskLinkModel
+        from sqlalchemy import or_
+        result = await db.execute(
+            select(TaskLinkModel).where(
+                or_(
+                    TaskLinkModel.source_task_id == task_id,
+                    TaskLinkModel.target_task_id == task_id
+                )
+            )
+        )
+        return result.scalars().all()
 
     # Member Ops
     @staticmethod
