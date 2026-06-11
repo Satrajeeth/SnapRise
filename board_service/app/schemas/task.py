@@ -34,3 +34,9 @@ class Task(TaskBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+class TaskMinimal(BaseModel):
+	id: UUID
+	title: str
+	column_id: UUID
+	
+	model_config = ConfigDict(from_attributes=True)

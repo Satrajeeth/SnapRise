@@ -179,10 +179,10 @@ async def delete_subtask(subtask_id: UUID, db: AsyncSession = Depends(get_db_ses
         raise HTTPException(status_code=404, detail="Subtask not found")
 
 @router.get("/tasks/{task_id}", response_model=TaskDetailed)
-async def get_task(task_id: UUID, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
+async def get_task(task_id: UUID, include_linked_tasks: bool = False, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_task(task_id, db)
     await require_viewer(board_id, user_id, db)
-    task = await BoardOps.get_task(db, task_id)
+    task = await BoardOps.get_task(db, task_id, include_linked_tasks=include_linked_tasks)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task

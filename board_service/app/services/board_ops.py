@@ -248,16 +248,26 @@ class BoardOps:
         return True
     
     @staticmethod
-    async def get_task(db: AsyncSession, task_id: UUID) -> Optional[Task]:
+    async def get_task(db: AsyncSession, task_id: UUID, include_linked_tasks: bool = False) -> Optional[Task]:
         from sqlalchemy.orm import selectinload
+        from app.models.task_link import TaskLink
+        
+        options = [selectinload(Task.subtasks)]
+        if include_linked_tasks:
+            options.extend([
+                selectinload(Task.source_links).selectinload(TaskLink.target_task),
+                selectinload(Task.target_links).selectinload(TaskLink.source_task)
+            ])
+        else:
+            options.extend([
+                selectinload(Task.source_links),
+                selectinload(Task.target_links)
+            ])
+
         result = await db.execute(
             select(Task)
             .where(Task.id == task_id)
-            .options(
-                selectinload(Task.subtasks),
-                selectinload(Task.source_links),
-                selectinload(Task.target_links)
-            )
+            .options(*options)
         )
         task = result.scalar_one_or_none()
         if task:

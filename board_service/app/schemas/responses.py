@@ -4,7 +4,7 @@ from .board import Board
 from .column import Column
 from .task import Task
 from .subtask import Subtask
-from .task_link import TaskLink
+from .task_link import TaskLink, TaskLinkDetailed
 
 class BoardDetailed(Board):
     columns: List["ColumnWithTasks"] = []
@@ -16,7 +16,7 @@ class TaskWithSubtasks(Task):
     subtasks: List[Subtask] = []
 
 class TaskDetailed(TaskWithSubtasks):
-    links: List[TaskLink] = []
+    links: List[TaskLinkDetailed] = []
 
 BoardDetailed.model_rebuild()
 ColumnWithTasks.model_rebuild()
