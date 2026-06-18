@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List
+from typing import List, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +27,16 @@ class Settings(BaseSettings):
 
     jwt_secret: str = Field(default="snaprise-dev-secret", alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+
+    # AI / LLM Configuration
+    default_llm_provider: str = Field(default="local", alias="DEFAULT_LLM_PROVIDER")
+    openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    local_llm_url: str = Field(default="http://localhost:1234/v1", alias="LOCAL_LLM_URL")
+    default_model_name: str = Field(default="gpt-4o-mini", alias="DEFAULT_MODEL_NAME")
+
+    # Celery / Redis
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    celery_broker_url: str = Field(default="redis://localhost:6379/1", alias="CELERY_BROKER_URL")
 
     model_config = SettingsConfigDict(
         env_file=".env",

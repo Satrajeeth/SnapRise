@@ -31,7 +31,7 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold">SnapRise Dashboard</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">{user?.email}</span>
-          <Button variant="outline" size="sm" onClick={logout}>
+          <Button variant="outline" onClick={logout}>
             Logout
           </Button>
         </div>
