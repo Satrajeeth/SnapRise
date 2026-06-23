@@ -5,11 +5,16 @@ services:
   # DATABASES & BROKERS
   # ----------------------
   postgres:
-    image: postgres:16
+    build: ./pgbackrest
     container_name: postgres
     restart: unless-stopped
-    env_file:
-      - ./database/.env
+    command: ["postgres", "-c", "wal_level=replica", "-c", "archive_mode=on", "-c", "archive_command=pgbackrest --stanza=main archive-push %p", "-c", "max_wal_senders=3"]
+    environment:
+      - POSTGRES_USER=snaprise_user
+      - POSTGRES_PASSWORD=snaprise_password
+      - POSTGRES_DB=otp_db
+      - AUTH_DATABASE_NAME=auth_db
+      - BOARD_DATABASE_NAME=board_db
     ports:
       - "5434:5432"
     healthcheck:
@@ -20,6 +25,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
+      - F:\database_backups:/var/lib/pgbackrest
 
   redis:
     image: redis:7
@@ -66,8 +72,9 @@ services:
     env_file:
       - ./otp_service/.env
     environment:
-      DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://app:password@postgres:5432/otp_db}
-      SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://app:password@postgres:5432/otp_db}
+      DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
+      SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
+      DEV_MODE: "true"
     depends_on:
       redis:
         condition: service_healthy
@@ -86,8 +93,8 @@ services:
     env_file:
       - ./otp_service/.env
     environment:
-      DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://app:password@postgres:5432/otp_db}
-      SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://app:password@postgres:5432/otp_db}
+      DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
+      SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
     depends_on:
       redis:
         condition: service_healthy
@@ -103,8 +110,8 @@ services:
     env_file:
       - ./board_service/.env
     environment:
-      DATABASE_URL: ${BOARD_DATABASE_URL:-postgresql+asyncpg://app:password@postgres:5432/board_db}
-      SYNC_DATABASE_URL: ${BOARD_SYNC_DATABASE_URL:-postgresql+psycopg2://app:password@postgres:5432/board_db}
+      DATABASE_URL: ${BOARD_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/board_db}
+      SYNC_DATABASE_URL: ${BOARD_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/board_db}
     ports:
       - "8002:8000"
     depends_on:

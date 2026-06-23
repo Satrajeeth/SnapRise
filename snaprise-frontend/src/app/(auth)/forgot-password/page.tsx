@@ -29,8 +29,12 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      await otpApi.send(email, "email_verification");
-      router.push(`/otp-verify?email=${encodeURIComponent(email)}&purpose=email_verification&mode=forgot_password`);
+      const result = await otpApi.send(email, "email_verification");
+      let otpVerifyUrl = `/otp-verify?email=${encodeURIComponent(email)}&purpose=email_verification&mode=forgot_password`;
+      if (result.dev_otp) {
+        otpVerifyUrl += `&dev_otp=${result.dev_otp}`;
+      }
+      router.push(otpVerifyUrl);
     } catch (err: any) {
       setError(err.message || "Failed to send OTP. Please try again.");
     } finally {

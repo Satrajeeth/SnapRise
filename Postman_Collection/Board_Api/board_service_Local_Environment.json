@@ -1,0 +1,57 @@
+{
+  "id": "e1f13b5d-1c3f-4e02-b2f7-f12345678901",
+  "name": "board_service Local Environment",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8002",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "auth_token",
+      "value": "your_jwt_token_here",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "board_id",
+      "value": "board_uuid",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "column_id",
+      "value": "column_uuid",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "task_id",
+      "value": "task_uuid",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "subtask_id",
+      "value": "subtask_uuid",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "template_id",
+      "value": "template_uuid",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "target_user_id",
+      "value": "target_user_uuid",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment",
+  "_postman_exported_at": "2023-10-25T12:00:00.000Z",
+  "_postman_exported_using": "Postman/10.0.0"
+}

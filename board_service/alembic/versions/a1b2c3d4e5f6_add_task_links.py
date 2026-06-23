@@ -26,7 +26,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('source_task_id', sa.UUID(), nullable=False),
     sa.Column('target_task_id', sa.UUID(), nullable=False),
-    sa.Column('link_type', sa.Enum('blocks', 'is_blocked_by', 'relates_to', name='linktype'), nullable=False),
+    sa.Column('link_type', postgresql.ENUM('blocks', 'is_blocked_by', 'relates_to', name='linktype', create_type=False), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['source_task_id'], ['tasks.id'], ),
     sa.ForeignKeyConstraint(['target_task_id'], ['tasks.id'], ),

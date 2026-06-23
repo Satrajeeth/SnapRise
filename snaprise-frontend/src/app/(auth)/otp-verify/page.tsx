@@ -24,6 +24,7 @@ function OtpVerifyContent() {
   const email = searchParams.get("email") || "";
   const purpose = searchParams.get("purpose") || "email_verification";
   const mode = searchParams.get("mode") || "signup";
+  const devOtp = searchParams.get("dev_otp");
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -165,6 +166,14 @@ function OtpVerifyContent() {
           </p>
         </div>
         
+        {devOtp && (
+          <div className="p-3 text-sm bg-amber-50 border border-amber-200 rounded-lg text-center">
+            <span className="font-semibold text-amber-800">🔧 Dev Mode</span>
+            <span className="text-amber-700"> — Your OTP is: </span>
+            <span className="font-mono font-bold text-amber-900 text-lg">{devOtp}</span>
+          </div>
+        )}
+
         {error && (
           <div className="p-3 text-sm text-red-500 bg-red-50 rounded-lg border border-red-100 text-center">
             {error}

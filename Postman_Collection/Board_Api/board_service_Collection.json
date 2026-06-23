@@ -1,0 +1,307 @@
+{
+  "info": {
+    "name": "board_service API",
+    "description": "API collection for SnapRise board_service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Boards",
+      "item": [
+        {
+          "name": "Get Boards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/boards", "host": ["{{base_url}}"], "path": ["v1", "boards"] }
+          }
+        },
+        {
+          "name": "Get Board",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}"] }
+          }
+        },
+        {
+          "name": "Create Board",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Project Alpha\",\n  \"description\": \"Main project board\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/boards", "host": ["{{base_url}}"], "path": ["v1", "boards"] }
+          }
+        },
+        {
+          "name": "Update Board",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Project Alpha Updated\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Board",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}"] }
+          }
+        },
+        {
+          "name": "Create Board from Template",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": { 
+              "raw": "{{base_url}}/v1/boards/from-template?template_id={{template_id}}&board_name=New Board", 
+              "host": ["{{base_url}}"], 
+              "path": ["v1", "boards", "from-template"],
+              "query": [
+                { "key": "template_id", "value": "{{template_id}}" },
+                { "key": "board_name", "value": "New Board" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Board Members",
+      "item": [
+        {
+          "name": "Get Board Members",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}/members", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}", "members"] } }
+        },
+        {
+          "name": "Add Board Member",
+          "request": { 
+            "method": "POST", 
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"user_id\": \"{{target_user_id}}\",\n  \"role\": \"editor\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}/members", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}", "members"] } 
+          }
+        },
+        {
+          "name": "Update Board Member",
+          "request": { 
+            "method": "PUT", 
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"viewer\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}/members/{{target_user_id}}", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}", "members", "{{target_user_id}}"] } 
+          }
+        },
+        {
+          "name": "Remove Board Member",
+          "request": { "method": "DELETE", "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}/members/{{target_user_id}}", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}", "members", "{{target_user_id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Columns",
+      "item": [
+        {
+          "name": "Create Column",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"board_id\": \"{{board_id}}\",\n  \"name\": \"To Do\",\n  \"order\": 1\n}" },
+            "url": { "raw": "{{base_url}}/v1/columns", "host": ["{{base_url}}"], "path": ["v1", "columns"] }
+          }
+        },
+        {
+          "name": "Update Column",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"In Progress\",\n  \"order\": 2\n}" },
+            "url": { "raw": "{{base_url}}/v1/columns/{{column_id}}", "host": ["{{base_url}}"], "path": ["v1", "columns", "{{column_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Column",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/columns/{{column_id}}", "host": ["{{base_url}}"], "path": ["v1", "columns", "{{column_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"column_id\": \"{{column_id}}\",\n  \"title\": \"Implement login feature\",\n  \"content\": \"Detailed description of task...\",\n  \"order\": 1\n}" },
+            "url": { "raw": "{{base_url}}/v1/tasks", "host": ["{{base_url}}"], "path": ["v1", "tasks"] }
+          }
+        },
+        {
+          "name": "Get Task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}?include_linked_tasks=true", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}"], "query": [{"key": "include_linked_tasks", "value": "true"}] }
+          }
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Implement secure login feature\",\n  \"content\": \"Updated description...\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}"] }
+          }
+        },
+        {
+          "name": "Create Task Link",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"target_task_id\": \"another_task_uuid\",\n  \"link_type\": \"blocks\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}/links", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}", "links"] }
+          }
+        },
+        {
+          "name": "Delete Task Link",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/tasks/links/{{link_id}}", "host": ["{{base_url}}"], "path": ["v1", "tasks", "links", "{{link_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subtasks",
+      "item": [
+        {
+          "name": "Create Subtask",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"task_id\": \"{{task_id}}\",\n  \"title\": \"Setup database schema\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/subtasks", "host": ["{{base_url}}"], "path": ["v1", "subtasks"] }
+          }
+        },
+        {
+          "name": "Update Subtask",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"is_completed\": true\n}" },
+            "url": { "raw": "{{base_url}}/v1/subtasks/{{subtask_id}}", "host": ["{{base_url}}"], "path": ["v1", "subtasks", "{{subtask_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Subtask",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/v1/subtasks/{{subtask_id}}", "host": ["{{base_url}}"], "path": ["v1", "subtasks", "{{subtask_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Templates",
+      "item": [
+        {
+          "name": "Get Templates",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/v1/templates", "host": ["{{base_url}}"], "path": ["v1", "templates"] } }
+        },
+        {
+          "name": "Get Template",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/v1/templates/{{template_id}}", "host": ["{{base_url}}"], "path": ["v1", "templates", "{{template_id}}"] } }
+        },
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Scrum Board\",\n  \"description\": \"Standard Scrum template\",\n  \"is_public\": true,\n  \"columns\": [{\"name\": \"To Do\", \"order\": 1}]\n}" },
+            "url": { "raw": "{{base_url}}/v1/templates", "host": ["{{base_url}}"], "path": ["v1", "templates"] }
+          }
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Updated description\"\n}" },
+            "url": { "raw": "{{base_url}}/v1/templates/{{template_id}}", "host": ["{{base_url}}"], "path": ["v1", "templates", "{{template_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Template",
+          "request": { "method": "DELETE", "url": { "raw": "{{base_url}}/v1/templates/{{template_id}}", "host": ["{{base_url}}"], "path": ["v1", "templates", "{{template_id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "AI & Smart Features",
+      "item": [
+        {
+          "name": "Analyze Task (AI)",
+          "request": { "method": "POST", "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}/ai-analyze", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}", "ai-analyze"] } }
+        },
+        {
+          "name": "Classify Task (AI)",
+          "request": { "method": "POST", "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}/ai-classify", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}", "ai-classify"] } }
+        },
+        {
+          "name": "Suggest Task Column",
+          "request": { "method": "POST", "url": { "raw": "{{base_url}}/v1/tasks/{{task_id}}/suggest-column", "host": ["{{base_url}}"], "path": ["v1", "tasks", "{{task_id}}", "suggest-column"] } }
+        },
+        {
+          "name": "Smart Sort Board",
+          "request": { "method": "POST", "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}/smart-sort", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}", "smart-sort"] } }
+        },
+        {
+          "name": "Get Board Metrics",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/v1/boards/{{board_id}}/metrics", "host": ["{{base_url}}"], "path": ["v1", "boards", "{{board_id}}", "metrics"] } }
+        }
+      ]
+    }
+  ]
+}
