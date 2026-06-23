@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     auth_jwt_secret: str = "super-secret-auth-key"
     allowed_origins: str = "*"
 
-    database_url: str = "postgresql+asyncpg://app:password@snaprise_postgres:5432/auth_db"
+    database_url: str = "postgresql+asyncpg://app:password@postgres:5432/auth_db"
     reset_password_redirect_url: str = "http://localhost:3000/reset-password"
     password_reset_delivery_mode: Literal["console", "smtp"] = "console"
 

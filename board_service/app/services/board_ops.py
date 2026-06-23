@@ -1,8 +1,9 @@
 from typing import List, Optional
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from fastapi import HTTPException
 
 from app.models.board import Board
 from app.models.column import Column
@@ -14,6 +15,7 @@ from app.schemas.task import TaskCreate, TaskUpdate
 from app.schemas.subtask import SubtaskCreate, SubtaskUpdate
 from app.services.security_manager import get_security_manager
 from app.domain.enums import EncryptionStatus
+from app.models.board_template import BoardTemplate
 
 security_manager = get_security_manager()
 
@@ -181,6 +183,15 @@ class BoardOps:
         
         update_data = task_in.model_dump(exclude_unset=True)
 
+        # Fetch Board for encryption and custom fields schema (always needed)
+        result = await db.execute(
+            select(Board)
+            .join(Column)
+            .where(Column.id == task.column_id)
+        )
+        board = result.scalar()
+        board_enc = board.encryption_status if board else EncryptionStatus.DISABLED
+
         #WIP Limit Check
         old_col_id = task.column_id
         if "column_id" in update_data and update_data["column_id"] != old_col_id:
@@ -193,7 +204,6 @@ class BoardOps:
                 )
                 current_count = count_result.scalar()
                 if current_count >= new_col.wip_limit:
-                    from fastapi import HTTPException
                     raise HTTPException(
                         status_code=400,
                         detail=f"Column '{new_col.name}' has reached its WIP limit of {new_col.wip_limit}."
@@ -202,15 +212,6 @@ class BoardOps:
                 #Trigger Automations
                 from app.services.automation_service import AutomationService
                 await AutomationService.process_task_move(db, task, old_col_id, new_col_id)
-
-            # Fetch Board for encryption and custom fields schema 
-            result = await db.execute(
-                select(Board)
-                .join(Column)
-                .where(Column.id == task.column_id)
-            )
-            board = result.scalar()
-            board_enc = board.encryption_status if board else EncryptionStatus.DISABLED
 
         #Custom Fields Validation
         if board and "custom_fields_schema" in board.settings:
@@ -225,7 +226,6 @@ class BoardOps:
             )
 
             if errors:
-                from fastapi import HTTPException
                 raise HTTPException(
                     status_code=400,
                     detail={"errors": errors}
@@ -407,13 +407,132 @@ class BoardOps:
     @staticmethod
     async def remove_board_member(db: AsyncSession, board_id: UUID, user_id: UUID):
         from app.models.board_member import BoardMember
+        from app.domain.enums import BoardRole
         result = await db.execute(
             select(BoardMember).where(BoardMember.board_id == board_id, BoardMember.user_id == user_id)
         )
         member = result.scalar_one_or_none()
         if not member:
             return False
-            
-        # Prevent removing the last owner? (Optional logic)
+
+        # Prevent removing the last owner
+        if member.role == BoardRole.OWNER:
+            owner_count_result = await db.execute(
+                select(func.count(BoardMember.id)).where(
+                    BoardMember.board_id == board_id,
+                    BoardMember.role == BoardRole.OWNER
+                )
+            )
+            owner_count = owner_count_result.scalar()
+            if owner_count <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot remove the last owner of a board."
+                )
+
         await db.delete(member)
         return True
+
+    # Template Ops
+    @staticmethod
+    async def get_templates(db: AsyncSession, user_id: Optional[UUID] = None) -> List[BoardTemplate]:
+        """Get templates visible to the user (own + public)."""
+        from sqlalchemy import or_
+        query = select(BoardTemplate)
+        if user_id:
+            query = query.where(
+                or_(
+                    BoardTemplate.owner_user_id == user_id,
+                    BoardTemplate.is_public == True
+                )
+            )
+        else:
+            query = query.where(BoardTemplate.is_public == True)
+        result = await db.execute(query)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_template(db: AsyncSession, template_id: UUID) -> Optional[BoardTemplate]:
+        """Get a single template by ID."""
+        return await db.get(BoardTemplate, template_id)
+
+    @staticmethod
+    async def create_template(db: AsyncSession, template_in, owner_id: UUID) -> BoardTemplate:
+        """Create a new board template."""
+        template_data = template_in.model_dump()
+        template = BoardTemplate(**template_data, owner_user_id=owner_id)
+        db.add(template)
+        await db.flush()
+        return template
+
+    @staticmethod
+    async def update_template(db: AsyncSession, template_id: UUID, template_in) -> Optional[BoardTemplate]:
+        """Update an existing template."""
+        template = await db.get(BoardTemplate, template_id)
+        if not template:
+            return None
+        update_data = template_in.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(template, key, value)
+        await db.flush()
+        return template
+
+    @staticmethod
+    async def delete_template(db: AsyncSession, template_id: UUID) -> bool:
+        """Delete a template."""
+        template = await db.get(BoardTemplate, template_id)
+        if not template:
+            return False
+        await db.delete(template)
+        return True
+
+    @staticmethod
+    async def create_board_from_template(
+        db: AsyncSession, template_id: UUID, board_name: str,
+        owner_id: UUID, description: Optional[str] = None
+    ) -> Board:
+        """Create a new board from a template, including its columns and settings."""
+        from fastapi import HTTPException
+
+        template = await db.get(BoardTemplate, template_id)
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        # Extract payload
+        payload = template.payload or {}
+        board_settings = payload.get("settings", {})
+        custom_fields_schema = payload.get("custom_fields_schema", [])
+        if custom_fields_schema:
+            board_settings["custom_fields_schema"] = custom_fields_schema
+
+        # Create board
+        board = Board(
+            name=board_name,
+            description=description or template.description,
+            settings=board_settings,
+        )
+        security_manager.process_board_for_storage(board)
+        db.add(board)
+        await db.flush()
+
+        # Create OWNER member
+        from app.models.board_member import BoardMember
+        from app.domain.enums import BoardRole
+        member = BoardMember(board_id=board.id, user_id=owner_id, role=BoardRole.OWNER)
+        db.add(member)
+
+        # Create columns from template
+        columns_payload = payload.get("columns", [])
+        for col_data in columns_payload:
+            col = Column(
+                board_id=board.id,
+                name=col_data.get("name", "Untitled"),
+                position=col_data.get("position", 0),
+                wip_limit=col_data.get("wip_limit"),
+                settings=col_data.get("settings", {}),
+            )
+            db.add(col)
+
+        await db.flush()
+        security_manager.process_board_after_load(board)
+        return board

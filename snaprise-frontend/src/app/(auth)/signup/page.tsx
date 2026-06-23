@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { otpApi } from "@/lib/api";
+import { otpApi, authApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
 

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID 
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,9 +14,11 @@ from app.schemas.task import Task, TaskCreate, TaskUpdate
 from app.schemas.subtask import Subtask, SubtaskCreate, SubtaskUpdate
 from app.schemas.task_link import TaskLink, TaskLinkCreate
 from app.schemas.responses import BoardDetailed, TaskDetailed
+from app.schemas.board_template import BoardTemplate as BoardTemplateSchema, BoardTemplateCreate, BoardTemplateUpdate
 from app.services.board_ops import BoardOps
 from app.services.ai_service import get_ai_service
 from app.services.security_manager import get_security_manager
+from app.services.metrics_service import MetricsService
 from app.api.v1.dependencies import (
     get_current_user_id,
     require_viewer,
@@ -24,8 +26,10 @@ from app.api.v1.dependencies import (
     require_editor,
     get_board_id_from_column,
     get_board_id_from_task,
-    get_board_id_from_subtask
+    get_board_id_from_subtask,
+    check_column_access
 )
+from app.domain.enums import AccessType
 
 security_manager = get_security_manager()
 ai_service = get_ai_service()
@@ -118,6 +122,8 @@ async def create_column(column_in: ColumnCreate, db: AsyncSession = Depends(get_
 async def update_column(column_id: UUID, column_in: ColumnUpdate, db: AsyncSession =Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_column(column_id, db)
     await require_editor(board_id, user_id, db)
+    if not await check_column_access(column_id, user_id, db, AccessType.WRITE):
+        raise HTTPException(status_code=403, detail="Column write access denied")
     column = await BoardOps.update_column(db, column_id, column_in)
     if not column:
         raise HTTPException(status_code=404, detail="Column not found")
@@ -127,6 +133,8 @@ async def update_column(column_id: UUID, column_in: ColumnUpdate, db: AsyncSessi
 async def delete_column(column_id: UUID, db: AsyncSession = Depends(get_db_session),user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_column(column_id, db)
     await require_editor(board_id, user_id, db)
+    if not await check_column_access(column_id, user_id, db, AccessType.WRITE):
+        raise HTTPException(status_code=403, detail="Column write access denied")
     if not await BoardOps.delete_column(db, column_id):
         raise HTTPException(status_code=404, detail="Column not found")
 
@@ -136,12 +144,25 @@ async def delete_column(column_id: UUID, db: AsyncSession = Depends(get_db_sessi
 async def create_task(task_in: TaskCreate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_task(task_in.column_id, db)
     await require_editor(board_id, user_id, db)
+    if not await check_column_access(task_in.column_id, user_id, db, AccessType.WRITE):
+        raise HTTPException(status_code=403, detail="Column write access denied")
     return await BoardOps.create_task(db, task_in)
 
 @router.patch("/tasks/{task_id}", response_model=Task)
 async def update_task(task_id: UUID, task_in: TaskUpdate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_task(task_id, db)
     await require_editor(board_id, user_id, db)
+    
+    # We must check column access for the existing task's column
+    task = await BoardOps.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not await check_column_access(task.column_id, user_id, db, AccessType.WRITE):
+        raise HTTPException(status_code=403, detail="Column write access denied")
+    
+    if task_in.column_id is not None and task_in.column_id != task.column_id:
+        if not await check_column_access(task_in.column_id, user_id, db, AccessType.WRITE):
+            raise HTTPException(status_code=403, detail="Destination column write access denied")
     task = await BoardOps.update_task(db, task_id, task_in)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -151,6 +172,12 @@ async def update_task(task_id: UUID, task_in: TaskUpdate, db: AsyncSession = Dep
 async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_task(task_id, db)
     await require_editor(board_id, user_id, db)
+    
+    task = await BoardOps.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not await check_column_access(task.column_id, user_id, db, AccessType.WRITE):
+        raise HTTPException(status_code=403, detail="Column write access denied")
     if not await BoardOps.delete_task(db, task_id):
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -160,12 +187,27 @@ async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db_session),
 async def create_subtask(subtask_in: SubtaskCreate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_subtask(subtask_in.task_id, db)
     await require_editor(board_id, user_id, db)
+    task = await BoardOps.get_task(db, subtask_in.task_id)
+    if task and not await check_column_access(task.column_id, user_id, db, AccessType.WRITE):
+        raise HTTPException(status_code=403, detail="Column write access denied")
     return await BoardOps.create_subtask(db, subtask_in)
 
 @router.patch("/subtasks/{subtask_id}", response_model=Subtask)
 async def update_subtask(subtask_id: UUID, subtask_in: SubtaskUpdate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_subtask(subtask_id, db)
     await require_editor(board_id, user_id, db)
+    
+    subtask_model = await db.get(SubtaskModel, subtask_id)
+    if subtask_model:
+        task = await BoardOps.get_task(db, subtask_model.task_id)
+        if task and not await check_column_access(task.column_id, user_id, db, AccessType.WRITE):
+            raise HTTPException(status_code=403, detail="Column write access denied")
+            
+        if subtask_in.task_id is not None and subtask_in.task_id != subtask_model.task_id:
+            new_task = await BoardOps.get_task(db, subtask_in.task_id)
+            if new_task and not await check_column_access(new_task.column_id, user_id, db, AccessType.WRITE):
+                raise HTTPException(status_code=403, detail="Destination column write access denied")
+                
     subtask = await BoardOps.update_subtask(db, subtask_id, subtask_in)
     if not subtask:
         raise HTTPException(status_code=404, detail="Subtask not found")
@@ -175,6 +217,13 @@ async def update_subtask(subtask_id: UUID, subtask_in: SubtaskUpdate, db: AsyncS
 async def delete_subtask(subtask_id: UUID, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
     board_id = await get_board_id_from_subtask(subtask_id, db)
     await require_editor(board_id, user_id, db)
+    
+    subtask_model = await db.get(SubtaskModel, subtask_id)
+    if subtask_model:
+        task = await BoardOps.get_task(db, subtask_model.task_id)
+        if task and not await check_column_access(task.column_id, user_id, db, AccessType.WRITE):
+            raise HTTPException(status_code=403, detail="Column write access denied")
+            
     if not await BoardOps.delete_subtask(db, subtask_id):
         raise HTTPException(status_code=404, detail="Subtask not found")
 
@@ -185,6 +234,8 @@ async def get_task(task_id: UUID, include_linked_tasks: bool = False, db: AsyncS
     task = await BoardOps.get_task(db, task_id, include_linked_tasks=include_linked_tasks)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    if not await check_column_access(task.column_id, user_id, db, AccessType.READ):
+        raise HTTPException(status_code=403, detail="Column read access denied")
     return task
 
 #AI Operations
@@ -320,3 +371,139 @@ async def delete_task_link(
     if not await BoardOps.delete_task_link(db, link_id):
         raise HTTPException(status_code=404, detail="Link not found")
 
+
+# Templates
+
+@router.get("/templates", response_model=List[BoardTemplateSchema])
+async def get_templates(
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    return await BoardOps.get_templates(db, user_id=user_id)
+
+@router.get("/templates/{template_id}", response_model=BoardTemplateSchema)
+async def get_template(
+    template_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    template = await BoardOps.get_template(db, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    # Check access: must be owner or template must be public
+    if template.owner_user_id != user_id and not template.is_public:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return template
+
+@router.post("/templates", response_model=BoardTemplateSchema, status_code=status.HTTP_201_CREATED)
+async def create_template(
+    template_in: BoardTemplateCreate,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    return await BoardOps.create_template(db, template_in, owner_id=user_id)
+
+@router.patch("/templates/{template_id}", response_model=BoardTemplateSchema)
+async def update_template(
+    template_id: UUID,
+    template_in: BoardTemplateUpdate,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    # Only owner can update
+    existing = await BoardOps.get_template(db, template_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if existing.owner_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Only the template owner can update it")
+    template = await BoardOps.update_template(db, template_id, template_in)
+    return template
+
+@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_template(
+    template_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    existing = await BoardOps.get_template(db, template_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if existing.owner_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Only the template owner can delete it")
+    await BoardOps.delete_template(db, template_id)
+
+@router.post("/boards/from-template", response_model=Board, status_code=status.HTTP_201_CREATED)
+async def create_board_from_template(
+    template_id: UUID,
+    board_name: str,
+    description: Optional[str] = None,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    """Create a new board from a template."""
+    # Verify template exists and user has access
+    template = await BoardOps.get_template(db, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if template.owner_user_id != user_id and not template.is_public:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return await BoardOps.create_board_from_template(
+        db, template_id, board_name, owner_id=user_id, description=description
+    )
+
+# Smart Features
+
+@router.post("/boards/{board_id}/smart-sort", status_code=status.HTTP_200_OK)
+async def board_smart_sort(
+    board_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    """Analyze all tasks and suggest re-ordering or flag blockers."""
+    await require_editor(board_id, user_id, db)
+    board = await BoardOps.get_board(db, board_id)
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+        
+    tasks_content = []
+    for col in getattr(board, "columns", []):
+        for t in getattr(col, "tasks", []):
+            tasks_content.append({"id": str(t.id), "title": t.title, "column": col.name})
+    
+    prompt = f"Analyze these tasks and suggest improvements, re-ordering, or identify bottlenecks:\n{tasks_content}"
+    messages = [{"role": "system", "content": "You are a Kanban expert."}, {"role": "user", "content": prompt}]
+    result = await ai_service.chat_completion(messages, max_tokens=300)
+    return {"suggestions": result}
+
+@router.post("/tasks/{task_id}/suggest-column")
+async def suggest_task_column(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    """Ask the AI to suggest which column this task belongs in based on content."""
+    board_id = await get_board_id_from_task(task_id, db)
+    await require_viewer(board_id, user_id, db)
+    
+    task = await BoardOps.get_task(db, task_id)
+    if not task:
+         raise HTTPException(status_code=404, detail="Task not found")
+         
+    # Need to fetch board details to get column names
+    board = await BoardOps.get_board(db, board_id)
+    col_names = [c.name for c in getattr(board, "columns", [])] if board else []
+    
+    suggestion = await ai_service.suggest_task_classification(task.title, task.content, col_names)
+    return {"suggested_column": suggestion}
+
+@router.get("/boards/{board_id}/metrics")
+async def get_board_metrics(
+    board_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id)
+):
+    await require_viewer(board_id, user_id, db)
+    metrics = await MetricsService.get_board_metrics(db, board_id)
+    if not metrics:
+        raise HTTPException(status_code=404, detail="Board not found")
+    return metrics

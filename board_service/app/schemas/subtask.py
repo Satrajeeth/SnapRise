@@ -17,8 +17,7 @@ class SubtaskUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     is_completed: Optional[bool] = None
     position: Optional[int] = Field(None, ge=0)
-    # task_id: Optional[UUID] = None
-    #Why is there no task_id to update model arent we allowed to drag and drop to another task change this design please
+    task_id: Optional[UUID] = None  # Supports re-parenting (drag-and-drop to another task)
     settings: Optional[dict] = None
     ai_metadata: Optional[dict] = None
 
