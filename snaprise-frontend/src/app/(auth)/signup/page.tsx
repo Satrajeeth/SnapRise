@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { otpApi } from "@/lib/api";
+import { otpApi, authApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -41,13 +41,17 @@ export default function SignupPage() {
       }
 
       // 1. Send OTP
-      await otpApi.send(email, "email_verification");
+      const result = await otpApi.send(email, "email_verification");
       
       // 2. Store signup info temporarily in sessionStorage for completion after OTP
       sessionStorage.setItem("signup_data", JSON.stringify({ name, email, password }));
       
       // 3. Redirect to OTP verification
-      router.push(`/otp-verify?email=${encodeURIComponent(email)}&purpose=email_verification&mode=signup`);
+      let otpVerifyUrl = `/otp-verify?email=${encodeURIComponent(email)}&purpose=email_verification&mode=signup`;
+      if (result.dev_otp) {
+        otpVerifyUrl += `&dev_otp=${result.dev_otp}`;
+      }
+      router.push(otpVerifyUrl);
     } catch (err: any) {
       setError(err.message || "Failed to send OTP. Please try again.");
     } finally {

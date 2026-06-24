@@ -46,7 +46,8 @@ async def register(
     validate_proof_token(proof_token, user_create.email, "email_verification")
     
     try:
-        user = await user_manager.create(user_create, safe=True)
+        user_create.is_verified = True
+        user = await user_manager.create(user_create, safe=False)
         return user
     except exceptions.UserAlreadyExists:
         raise HTTPException(

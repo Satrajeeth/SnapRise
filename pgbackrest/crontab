@@ -1,0 +1,5 @@
+# Run an incremental backup every hour
+0 * * * * pgbackrest --stanza=main --type=incr --log-level-console=info backup >> /var/log/pgbackrest/cron.log 2>&1
+
+# Run a full backup every day at 2 AM
+0 2 * * * pgbackrest --stanza=main --type=full --log-level-console=info backup >> /var/log/pgbackrest/cron.log 2>&1

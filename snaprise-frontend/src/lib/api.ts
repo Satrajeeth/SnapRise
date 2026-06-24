@@ -36,7 +36,7 @@ export async function apiRequest(
 
 export const otpApi = {
   send: (email: string, purpose: string) =>
-    apiRequest(OTP_BASE_URL, "/send", {
+    apiRequest(OTP_BASE_URL, "/v1/otp/send", {
       method: "POST",
       body: JSON.stringify({
         email,
@@ -47,7 +47,7 @@ export const otpApi = {
       }),
     }),
   verify: (email: string, purpose: string, code: string) =>
-    apiRequest(OTP_BASE_URL, "/verify", {
+    apiRequest(OTP_BASE_URL, "/v1/otp/verify", {
       method: "POST",
       body: JSON.stringify({
         email,

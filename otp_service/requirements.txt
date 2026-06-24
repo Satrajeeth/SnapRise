@@ -1,26 +1,26 @@
-fastapi==0.110.0
-uvicorn[standard]==0.29.0
-gunicorn==21.2.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+gunicorn>=21.2.0
 
-SQLAlchemy==2.0.29
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
-alembic==1.13.1
+SQLAlchemy>=2.0.29
+asyncpg>=0.30.0
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
 
-pydantic==2.6.4
-email-validator==2.3.0
-python-dotenv==1.0.1
-aiohttp==3.9.3
+pydantic>=2.9.0
+email-validator>=2.3.0
+python-dotenv>=1.0.1
+aiohttp>=3.10.0
 
-celery==5.3.6
-redis==5.0.3
-kombu==5.3.5
+celery>=5.3.6
+redis>=5.0.3
+kombu>=5.3.5
 
-sendgrid==6.11.0
+sendgrid>=6.11.0
 
-pytest==8.1.1
-black==24.3.0
-isort==5.13.2
+pytest>=8.1.1
+black>=24.3.0
+isort>=5.13.2
 
-pydantic-settings==2.0.3
-pyjwt==2.8.0
+pydantic-settings>=2.4.0
+pyjwt>=2.8.0

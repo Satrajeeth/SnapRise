@@ -25,6 +25,7 @@ class SendOtpResponse(BaseModel):
     request_id: str
     status: Literal["sent", "queued"]
     provider_id: str | None = None
+    dev_otp: str | None = None
 
 
 class VerifyOtpResponse(BaseModel):

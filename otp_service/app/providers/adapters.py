@@ -9,6 +9,8 @@ import aiohttp
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Content, Email, Mail, To
 
+import logging
+
 from app.domain.enums import ProviderErrorType
 from app.providers.base import (
     AuthProviderError,
@@ -20,6 +22,10 @@ from app.providers.base import (
     QuotaExhaustedProviderError,
     RetryableProviderError,
 )
+
+
+
+logger = logging.getLogger(__name__)
 
 
 class SmtpEmailProvider(BaseProviderAdapter):
@@ -161,6 +167,17 @@ class LoggingEmailProvider(BaseProviderAdapter):
             raise AuthProviderError("provider authentication failed")
         if mode == "non_retryable":
             raise NonRetryableProviderError("permanent provider failure")
+        logger.info(
+            "\n"
+            "┌──────────────────────────────────────────┐\n"
+            "│          📧 DEV MODE — OTP CODE          │\n"
+            "├──────────────────────────────────────────┤\n"
+            "│  Email : %-30s  │\n"
+            "│  Code  : %-30s  │\n"
+            "│  Purpose: %-29s  │\n"
+            "└──────────────────────────────────────────┘",
+            payload.email, payload.code, payload.purpose,
+        )
         return ProviderSendResult(
             provider_id=self.provider_id, success=True, tier=self.tier
         )
@@ -311,6 +328,84 @@ class SendGridEmailProvider(BaseProviderAdapter):
             return HealthResult(
                 healthy=False, reason=f"SendGrid health check failed: {str(e)}"
             )
+
+    def classify_error(self, error: Exception) -> ProviderErrorType:
+        if isinstance(error, AuthProviderError):
+            return ProviderErrorType.auth_error
+        if isinstance(error, RetryableProviderError):
+            return ProviderErrorType.retryable
+        return ProviderErrorType.non_retryable
+
+import base64
+
+class MailjetHttpEmailProvider(BaseProviderAdapter):
+    async def send_email_otp(self, payload: ProviderSendPayload) -> ProviderSendResult:
+        api_key = self.settings.get("api_key")
+        secret_key = self.settings.get("secret_key")
+        from_email = self.settings.get("from_email", "noreply@example.com")
+
+        if not api_key or not secret_key:
+            raise AuthProviderError("Mailjet API credentials not configured")
+
+        url = "https://api.mailjet.com/v3.1/send"
+        
+        auth_string = f"{api_key}:{secret_key}"
+        auth_bytes = auth_string.encode('ascii')
+        base64_bytes = base64.b64encode(auth_bytes)
+        base64_auth = base64_bytes.decode('ascii')
+        
+        headers = {
+            "Authorization": f"Basic {base64_auth}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "Messages": [
+                {
+                    "From": {"Email": from_email, "Name": "SnapRise OTP"},
+                    "To": [{"Email": payload.email}],
+                    "Subject": "Your OTP Code",
+                    "HTMLPart": f"<p>Your OTP is: <strong>{payload.code}</strong></p><p>It expires in 5 minutes.</p>",
+                    "TextPart": f"Your OTP is: {payload.code}. It expires in 5 minutes.",
+                }
+            ]
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status == 200:
+                    return ProviderSendResult(
+                        provider_id=self.provider_id, success=True, tier=self.tier
+                    )
+                text = await resp.text()
+                if resp.status == 401 or "unauthorized" in text.lower():
+                    raise AuthProviderError(f"Mailjet API auth failed: {text}")
+                if resp.status >= 500:
+                    raise RetryableProviderError(f"Mailjet API error: {resp.status} {text}")
+                raise NonRetryableProviderError(f"Mailjet API error: {resp.status} {text}")
+
+    async def check_health(self) -> HealthResult:
+        api_key = self.settings.get("api_key")
+        secret_key = self.settings.get("secret_key")
+        if not api_key or not secret_key:
+            return HealthResult(healthy=False, reason="Mailjet API credentials not configured")
+        try:
+            auth_string = f"{api_key}:{secret_key}"
+            base64_auth = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://api.mailjet.com/v3/REST/user",
+                    headers={"Authorization": f"Basic {base64_auth}"},
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status == 200:
+                        return HealthResult(healthy=True)
+                    text = await resp.text()
+                    return HealthResult(healthy=False, reason=f"API returned {resp.status}: {text}")
+        except Exception as e:
+            return HealthResult(healthy=False, reason=f"Health check failed: {str(e)}")
 
     def classify_error(self, error: Exception) -> ProviderErrorType:
         if isinstance(error, AuthProviderError):
