@@ -136,44 +136,44 @@ class BoardOps:
                     status_code=400, #Means Bad Request 
                     detail=f"Column '{col.name}' has reached its WIP limit of {col.wip_limit}."
                 )
-            '''It converts the Pydantic input (task_in) into a dictionary and uses it to create a 
-            new Task object by unpacking its fields as arguments.
-            model_dump() converts a Pydantic model instance into a Python dictionary of its data.'''
-            task = Task(**task_in.model_dump())
+        '''It converts the Pydantic input (task_in) into a dictionary and uses it to create a
+        new Task object by unpacking its fields as arguments.
+        model_dump() converts a Pydantic model instance into a Python dictionary of its data.'''
+        task = Task(**task_in.model_dump())
 
-            #Fetch Board for encryption and custom fields schema 
-            result = await db.execute(
-                select(Board)
-                .join(Column)
-                .where(Column.id == task_in.column_id)
+        #Fetch Board for encryption and custom fields schema
+        result = await db.execute(
+            select(Board)
+            .join(Column)
+            .where(Column.id == task_in.column_id)
+        )
+        '''scalar()- Returns the first column of the first row, or None if no result.
+        scalar_one_or_none() - Returns one scalar value or None
+        scalar_one() - Returns exactly one scalar value
+        scalars() - Returns all scalar values as an iterable
+        _source_supports_scalars - Internal flag (not for direct use) . Indicates whether the result supports scalar extraction'''
+        board = result.scalar()
+        board_enc = board.encryption_status if board else EncryptionStatus.DISABLED
+
+        #Custom Fields Validation
+        if board and "custom_fields_schema" in board.settings:
+            from app.services.custom_fields_service import CustomFieldsService
+            errors = CustomFieldsService.validate_custom_fields(
+                task.custom_fields,
+                board.settings["custom_fields_schema"]
             )
-            '''scalar()- Returns the first column of the first row, or None if no result.
-            scalar_one_or_none() - Returns one scalar value or None
-            scalar_one() - Returns exactly one scalar value
-            scalars() - Returns all scalar values as an iterable
-            _source_supports_scalars - Internal flag (not for direct use) . Indicates whether the result supports scalar extraction'''
-            board = result.scalar()
-            board_enc = board.encryption_status if board else EncryptionStatus.DISABLED
-
-            #Custom Fields Validation
-            if board and "custom_fields_schema" in board.settings:
-                from app.services.custom_fields_service import CustomFieldsService
-                errors = CustomFieldsService.validate_custom_fields(
-                    task.custom_fields,
-                    board.settings["custom_fields_schema"]
+            if errors:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=400,
+                    detail={"errors": errors}
                 )
-                if errors:
-                    from fastapi import HTTPException
-                    raise HTTPException(
-                        status_code=400,
-                        detail={"errors": errors}
-                    )
-                
-            security_manager.process_task_for_storage(task, board_enc)
-            db.add(task)
-            await db.flush()
-            security_manager.process_task_after_load(task, board_enc)
-            return task
+
+        security_manager.process_task_for_storage(task, board_enc)
+        db.add(task)
+        await db.flush()
+        security_manager.process_task_after_load(task, board_enc)
+        return task
         
     @staticmethod
     async def update_task(db: AsyncSession, task_id: UUID, task_in: TaskUpdate) -> Optional[Task]:

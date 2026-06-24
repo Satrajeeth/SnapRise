@@ -142,7 +142,8 @@ async def delete_column(column_id: UUID, db: AsyncSession = Depends(get_db_sessi
 
 @router.post("/tasks", response_model=Task, status_code=status.HTTP_201_CREATED)
 async def create_task(task_in: TaskCreate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
-    board_id = await get_board_id_from_task(task_in.column_id, db)
+    # A task being created has no id yet — resolve the board from its column.
+    board_id = await get_board_id_from_column(task_in.column_id, db)
     await require_editor(board_id, user_id, db)
     if not await check_column_access(task_in.column_id, user_id, db, AccessType.WRITE):
         raise HTTPException(status_code=403, detail="Column write access denied")
@@ -185,7 +186,8 @@ async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db_session),
 
 @router.post("/subtasks", response_model=Subtask, status_code=status.HTTP_201_CREATED)
 async def create_subtask(subtask_in: SubtaskCreate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):
-    board_id = await get_board_id_from_subtask(subtask_in.task_id, db)
+    # A subtask being created has no id yet — resolve the board from its parent task.
+    board_id = await get_board_id_from_task(subtask_in.task_id, db)
     await require_editor(board_id, user_id, db)
     task = await BoardOps.get_task(db, subtask_in.task_id)
     if task and not await check_column_access(task.column_id, user_id, db, AccessType.WRITE):

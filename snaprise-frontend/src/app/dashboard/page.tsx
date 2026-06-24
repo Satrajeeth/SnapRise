@@ -2,12 +2,20 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { boardApi } from "@/lib/api/boards";
+import { Board } from "@/types/board";
+import { BoardCard } from "@/components/board/BoardCard";
+import { Plus, Loader2, LayoutGrid } from "lucide-react";
 
 export default function Dashboard() {
   const { token, user, logout, isLoading } = useAuth();
   const router = useRouter();
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [loadingBoards, setLoadingBoards] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newBoardName, setNewBoardName] = useState("");
 
   useEffect(() => {
     if (!isLoading && !token) {
@@ -15,10 +23,42 @@ export default function Dashboard() {
     }
   }, [token, isLoading, router]);
 
+  useEffect(() => {
+    const fetchBoards = async () => {
+      if (token) {
+        try {
+          const data = await boardApi.getBoards(token);
+          setBoards(data);
+        } catch (error) {
+          console.error("Failed to fetch boards", error);
+        } finally {
+          setLoadingBoards(false);
+        }
+      }
+    };
+    fetchBoards();
+  }, [token]);
+
+  const handleCreateBoard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBoardName.trim() || !token) return;
+
+    try {
+      setIsCreating(true);
+      const newBoard = await boardApi.createBoard(token, newBoardName);
+      setBoards([...boards, newBoard]);
+      setNewBoardName("");
+    } catch (error) {
+      console.error("Failed to create board", error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-foreground/70" />
       </div>
     );
   }
@@ -26,20 +66,82 @@ export default function Dashboard() {
   if (!token) return null;
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
-        <h1 className="text-xl font-bold">SnapRise Dashboard</h1>
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-6 py-4 backdrop-blur-md sm:px-8">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
+            <LayoutGrid className="h-5 w-5" />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight">SnapRise Boards</h1>
+        </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{user?.email}</span>
+          <span className="hidden text-sm text-foreground/60 sm:inline">
+            {user?.email}
+          </span>
           <Button variant="outline" onClick={logout}>
             Logout
           </Button>
         </div>
       </header>
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold mb-4">Welcome, {user?.email}!</h2>
-          <p className="text-gray-600">You are successfully logged in. UI coming soon.</p>
+
+      <main className="flex-1 overflow-auto p-6 sm:p-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Your Boards</h2>
+              <p className="mt-1 text-sm text-foreground/50">
+                {boards.length > 0
+                  ? `${boards.length} board${boards.length === 1 ? "" : "s"} · pick up where you left off`
+                  : "Spin up a board and start organizing."}
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleCreateBoard}
+              className="flex items-center gap-2 rounded-2xl border border-border bg-card p-1.5 pl-4 transition-colors focus-within:border-foreground/30"
+            >
+              <input
+                type="text"
+                placeholder="New board name..."
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                className="w-44 bg-transparent text-sm placeholder:text-foreground/40 transition-all focus:w-56 focus:outline-none"
+              />
+              <Button
+                type="submit"
+                disabled={isCreating || !newBoardName.trim()}
+              >
+                {isCreating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
+                {isCreating ? "Creating" : "Create"}
+              </Button>
+            </form>
+          </div>
+
+          {loadingBoards ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-foreground/60" />
+            </div>
+          ) : boards.length === 0 ? (
+            <div className="animate-rise rounded-2xl border border-border bg-card py-20 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground text-background">
+                <LayoutGrid className="h-7 w-7" />
+              </div>
+              <h3 className="mb-2 text-xl font-semibold">No boards yet</h3>
+              <p className="text-foreground/50">
+                Create your first board to get started.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {boards.map((board, i) => (
+                <BoardCard key={board.id} board={board} index={i} />
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

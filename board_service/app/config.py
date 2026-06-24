@@ -25,8 +25,13 @@ class Settings(BaseSettings):
         alias="ENCRYPTION_KEY"
     )
 
-    jwt_secret: str = Field(default="snaprise-dev-secret", alias="JWT_SECRET")
+    # Must match the auth_service signing secret (auth_service AUTH_JWT_SECRET),
+    # since the board service verifies the JWTs that the auth service issues.
+    jwt_secret: str = Field(default="super-secret-auth-key", alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    # fastapi-users embeds this audience claim in login tokens; it must be
+    # verified (or the claim is rejected) when decoding.
+    jwt_audience: str = Field(default="fastapi-users:auth", alias="JWT_AUDIENCE")
 
     # AI / LLM Configuration
     default_llm_provider: str = Field(default="local", alias="DEFAULT_LLM_PROVIDER")

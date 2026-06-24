@@ -18,11 +18,14 @@ class ColumnAccess(Base):
     
     # Can restrict by specific user or by role
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
-    role_restriction: Mapped[Optional[BoardRole]] = mapped_column(Enum(BoardRole), nullable=True)
-    
-   
+    role_restriction: Mapped[Optional[BoardRole]] = mapped_column(
+        Enum(BoardRole, values_callable=lambda e: [m.value for m in e]), nullable=True
+    )
 
-    access_type: Mapped[AccessType] = mapped_column(Enum(AccessType), default=AccessType.READ)
+    access_type: Mapped[AccessType] = mapped_column(
+        Enum(AccessType, values_callable=lambda e: [m.value for m in e]),
+        default=AccessType.READ,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     #func.now() - When a new row is inserted, let the DATABASE automatically set the current timestamp.
