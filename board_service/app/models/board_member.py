@@ -18,7 +18,13 @@ class BoardMember(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     board_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("boards.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
-    role: Mapped[BoardRole] = mapped_column(Enum(BoardRole), default=BoardRole.VIEWER)
+    # values_callable → store/read the lowercase enum *values* (owner/editor/viewer),
+    # matching the existing Postgres `boardrole` type. Without it SQLAlchemy binds the
+    # member NAME ("OWNER"), which the DB enum rejects.
+    role: Mapped[BoardRole] = mapped_column(
+        Enum(BoardRole, values_callable=lambda e: [m.value for m in e]),
+        default=BoardRole.VIEWER,
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

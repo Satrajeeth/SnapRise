@@ -14,7 +14,9 @@ class TaskLink(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tasks.id"), index=True)
     target_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tasks.id"), index=True)
-    link_type: Mapped[LinkType] = mapped_column(Enum(LinkType), index=True)
+    link_type: Mapped[LinkType] = mapped_column(
+        Enum(LinkType, values_callable=lambda e: [m.value for m in e]), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
