@@ -15,8 +15,10 @@ from app.schemas.subtask import Subtask, SubtaskCreate, SubtaskUpdate
 from app.schemas.task_link import TaskLink, TaskLinkCreate
 from app.schemas.responses import BoardDetailed, TaskDetailed
 from app.schemas.board_template import BoardTemplate as BoardTemplateSchema, BoardTemplateCreate, BoardTemplateUpdate
+from app.schemas.invitation import InvitationCreate, InvitationResponse, AcceptInvitationResponse
 from app.models.subtask import Subtask as SubtaskModel
 from app.services.board_ops import BoardOps
+from app.services.invitation_ops import InvitationOps
 from app.services.ai_service import get_ai_service
 from app.services.security_manager import get_security_manager
 from app.services.metrics_service import MetricsService
@@ -111,7 +113,71 @@ async def remove_board_member(
     if not await BoardOps.remove_board_member(db, board_id, target_user_id):
         raise HTTPException(status_code=404, detail="Member not found")
 
-#Columns 
+# Board Invitations
+#
+# Email-based invites split across two paths the FRONTEND orchestrates:
+#   1. it asks auth /resolve-email — if the email is a known user it calls the
+#      existing POST /members directly (no invitation needed);
+#   2. if auth returns 404 it calls POST /invitations below, which records a
+#      pending invitation + a marketing lead and logs the accept link.
+# So this endpoint is only ever hit for emails with no account yet.
+
+@router.post(
+    "/boards/{board_id}/invitations",
+    response_model=InvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_board_invitation(
+    board_id: UUID,
+    invitation_in: InvitationCreate,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    await require_owner(board_id, user_id, db)
+    return await InvitationOps.create_invitation(
+        db, board_id, invitation_in.email, invitation_in.role, invited_by=user_id
+    )
+
+
+@router.get("/boards/{board_id}/invitations", response_model=List[InvitationResponse])
+async def list_board_invitations(
+    board_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    # Read-level: anyone who can view the board can see who's been invited.
+    await require_viewer(board_id, user_id, db)
+    return await InvitationOps.list_invitations(db, board_id)
+
+
+@router.delete(
+    "/boards/{board_id}/invitations/{invitation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def revoke_board_invitation(
+    board_id: UUID,
+    invitation_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    await require_owner(board_id, user_id, db)
+    if not await InvitationOps.revoke_invitation(db, board_id, invitation_id):
+        raise HTTPException(status_code=404, detail="Pending invitation not found")
+
+
+@router.post("/boards/invitations/{token}/accept", response_model=AcceptInvitationResponse)
+async def accept_board_invitation(
+    token: str,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    # NOT board-gated: the caller isn't a member yet — possession of the token
+    # plus a valid login is the authorization. The accepting user comes from the
+    # JWT, so a link can only ever add its bearer.
+    invitation = await InvitationOps.accept_invitation(db, token, user_id)
+    return AcceptInvitationResponse(board_id=invitation.board_id, role=invitation.role)
+
+#Columns
 
 @router.post("/columns", response_model=Column, status_code=status.HTTP_201_CREATED)
 async def create_column(column_in: ColumnCreate, db: AsyncSession = Depends(get_db_session), user_id: UUID = Depends(get_current_user_id)):

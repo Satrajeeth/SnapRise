@@ -8,6 +8,8 @@ import type {
   BoardMemberCreate,
   BoardMemberUpdate,
   BoardRole,
+  InvitationResponse,
+  AcceptInvitationResponse,
   Column,
   ColumnCreate,
   ColumnUpdate,
@@ -103,6 +105,37 @@ export const boardApi = {
       BOARD_BASE_URL,
       `/v1/boards/${boardId}/members/${targetUserId}`,
       withAuth(token, { method: "DELETE" })
+    ),
+
+  // ---- Board invitations (invite-by-email for users without an account yet) ----
+  inviteMember: (
+    token: string,
+    boardId: string,
+    email: string,
+    role: BoardRole = "viewer"
+  ): Promise<InvitationResponse> =>
+    apiRequest(BOARD_BASE_URL, `/v1/boards/${boardId}/invitations`, jsonBody(token, "POST", {
+      email,
+      role,
+    })),
+
+  listInvitations: (token: string, boardId: string): Promise<InvitationResponse[]> =>
+    apiRequest(BOARD_BASE_URL, `/v1/boards/${boardId}/invitations`, withAuth(token, { method: "GET" })),
+
+  revokeInvitation: (token: string, boardId: string, invitationId: string): Promise<void> =>
+    apiRequest(
+      BOARD_BASE_URL,
+      `/v1/boards/${boardId}/invitations/${invitationId}`,
+      withAuth(token, { method: "DELETE" })
+    ),
+
+  // Called by the invitee from the accept page. `inviteToken` is the raw token
+  // from the emailed link, not a JWT (the JWT goes in the Authorization header).
+  acceptInvitation: (token: string, inviteToken: string): Promise<AcceptInvitationResponse> =>
+    apiRequest(
+      BOARD_BASE_URL,
+      `/v1/boards/invitations/${encodeURIComponent(inviteToken)}/accept`,
+      withAuth(token, { method: "POST" })
     ),
 
   // ---- Columns ----

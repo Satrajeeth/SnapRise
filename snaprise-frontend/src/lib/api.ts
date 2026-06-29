@@ -105,6 +105,16 @@ export const authApi = {
     apiRequest(AUTH_BASE_URL, `/auth/check-email?email=${encodeURIComponent(email)}`, {
       method: "GET",
     }),
+  // Resolve an email to a user id. Requires auth (the endpoint is gated). Throws
+  // (404 -> "USER_NOT_FOUND") when no account exists for the email — callers use
+  // that to branch into the invitation flow.
+  resolveEmail: (token: string, email: string) =>
+    apiRequest(AUTH_BASE_URL, `/auth/resolve-email?email=${encodeURIComponent(email)}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }),
   me: (token: string) =>
     apiRequest(AUTH_BASE_URL, "/users/me", {
       method: "GET",

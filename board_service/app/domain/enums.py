@@ -20,6 +20,13 @@ class BoardRole(str, Enum):
     VIEWER = "viewer"
 
 
+class InvitationStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+
 class AccessType(str, Enum):
     READ = "read"
     WRITE = "write"

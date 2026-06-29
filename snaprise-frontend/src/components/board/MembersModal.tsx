@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { boardApi } from "@/lib/api/boards";
-import type { BoardMemberResponse, BoardRole } from "@/types/api/board.types";
+import { authApi } from "@/lib/api";
+import type {
+  BoardMemberResponse,
+  BoardRole,
+  InvitationResponse,
+} from "@/types/api/board.types";
 import { Modal } from "@/components/ui/Modal";
-import { Loader2, UserPlus, X } from "lucide-react";
+import { Loader2, UserPlus, X, Mail, Clock } from "lucide-react";
 
 const ROLES: BoardRole[] = ["owner", "editor", "viewer"];
 
@@ -17,15 +22,24 @@ interface Props {
 
 export function MembersModal({ token, boardId, currentUserId, onClose }: Props) {
   const [members, setMembers] = useState<BoardMemberResponse[]>([]);
+  const [invitations, setInvitations] = useState<InvitationResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState("");
+  const [email, setEmail] = useState("");
   const [role, setRole] = useState<BoardRole>("editor");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      setMembers(await boardApi.getBoardMembers(token, boardId));
+      // Pending invitations sit alongside members; load both. Invitations are
+      // best-effort (a viewer might lack access) so they never block members.
+      const [memberList, inviteList] = await Promise.all([
+        boardApi.getBoardMembers(token, boardId),
+        boardApi.listInvitations(token, boardId).catch(() => [] as InvitationResponse[]),
+      ]);
+      setMembers(memberList);
+      setInvitations(inviteList);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load members");
     } finally {
@@ -40,17 +54,46 @@ export function MembersModal({ token, boardId, currentUserId, onClose }: Props) 
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId.trim()) return;
+    const value = email.trim();
+    if (!value) return;
     setAdding(true);
     setError(null);
+    setNotice(null);
     try {
-      await boardApi.addBoardMember(token, boardId, userId.trim(), role);
-      setUserId("");
+      // Branch: resolve the email to a user id. If they have an account, add
+      // them straight away; if auth returns 404 (USER_NOT_FOUND), fall through
+      // to creating a pending invitation instead.
+      const resolved = await authApi.resolveEmail(token, value);
+      await boardApi.addBoardMember(token, boardId, resolved.user_id, role);
+      setNotice(`${value} added to the board.`);
+      setEmail("");
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add member");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg === "USER_NOT_FOUND") {
+        try {
+          await boardApi.inviteMember(token, boardId, value, role);
+          setNotice(`Invitation sent to ${value}.`);
+          setEmail("");
+          await load();
+        } catch (inviteErr) {
+          setError(inviteErr instanceof Error ? inviteErr.message : "Failed to send invitation");
+        }
+      } else {
+        setError(msg || "Failed to add member");
+      }
     } finally {
       setAdding(false);
+    }
+  };
+
+  const revokeInvite = async (inv: InvitationResponse) => {
+    setInvitations((prev) => prev.filter((x) => x.id !== inv.id));
+    try {
+      await boardApi.revokeInvitation(token, boardId, inv.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to revoke invitation");
+      load();
     }
   };
 
@@ -81,9 +124,10 @@ export function MembersModal({ token, boardId, currentUserId, onClose }: Props) 
       <div className="px-6 pb-4">
         <form onSubmit={handleAdd} className="flex items-center gap-2">
           <input
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            placeholder="User ID (UUID)"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Invite by email"
             className="flex-1 rounded-xl border border-border bg-input px-3.5 py-2.5 text-sm focus:border-foreground/40 focus:outline-none"
           />
           <select
@@ -99,7 +143,7 @@ export function MembersModal({ token, boardId, currentUserId, onClose }: Props) 
           </select>
           <button
             type="submit"
-            disabled={adding || !userId.trim()}
+            disabled={adding || !email.trim()}
             className="flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
@@ -107,9 +151,13 @@ export function MembersModal({ token, boardId, currentUserId, onClose }: Props) 
           </button>
         </form>
         <p className="mt-2 text-[11px] text-foreground/40">
-          Invites use a user&apos;s ID. Email-based invites need a lookup endpoint on the
-          auth service (see notes).
+          Existing users are added instantly. Unknown emails get an invitation to join the board.
         </p>
+        {notice && (
+          <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 p-2.5 text-center text-sm text-emerald-600">
+            {notice}
+          </div>
+        )}
         {error && (
           <div className="mt-3 rounded-lg border border-red-100 bg-red-50 p-2.5 text-center text-sm text-red-500">
             {error}
@@ -181,6 +229,38 @@ export function MembersModal({ token, boardId, currentUserId, onClose }: Props) 
           </p>
         )}
       </div>
+
+      {!loading && invitations.length > 0 && (
+        <>
+          <div className="h-px w-full bg-border" />
+          <div className="px-3 py-2">
+            <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/40">
+              Pending invitations
+            </p>
+            {invitations.map((inv) => (
+              <div key={inv.id} className="flex items-center gap-3 px-3 py-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <Mail className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{inv.email}</p>
+                  <p className="flex items-center gap-1 text-xs text-foreground/50">
+                    <Clock className="h-3 w-3" />
+                    Invited as {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => revokeInvite(inv)}
+                  title="Revoke invitation"
+                  className="text-foreground/30 transition-colors hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

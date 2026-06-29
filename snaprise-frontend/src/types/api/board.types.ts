@@ -65,6 +65,25 @@ export interface BoardMemberUpdate {
   role: BoardRole;
 }
 
+// ---- Invitations ----
+export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface InvitationResponse {
+  id: string;
+  board_id: string;
+  email: string;
+  role: BoardRole;
+  status: InvitationStatus;
+  invited_by: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface AcceptInvitationResponse {
+  board_id: string;
+  role: BoardRole;
+}
+
 // ---- Columns ----
 export interface Column {
   id: string;

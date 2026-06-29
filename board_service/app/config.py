@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     # verified (or the claim is rejected) when decoding.
     jwt_audience: str = Field(default="fastapi-users:auth", alias="JWT_AUDIENCE")
 
+    # Invitations
+    # Base URL of the user-facing frontend; the invite accept link is built as
+    # f"{frontend_base_url}/invite/{token}". Must point at where the Next.js app
+    # is served (http://localhost:3000 in dev).
+    frontend_base_url: str = Field(default="http://localhost:3000", alias="FRONTEND_BASE_URL")
+    # How long a pending invitation stays valid. 168h = 7 days.
+    invite_token_ttl_hours: int = Field(default=168, alias="INVITE_TOKEN_TTL_HOURS")
+
     # AI / LLM Configuration
     default_llm_provider: str = Field(default="local", alias="DEFAULT_LLM_PROVIDER")
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")

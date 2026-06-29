@@ -21,6 +21,9 @@ interface AuthContextType {
 
 const ACCESS_KEY = "access_token";
 const REFRESH_KEY = "refresh_token";
+// A path stashed by a flow that needs the user to log in first (e.g. accepting
+// a board invitation); consumed once by login() after a successful sign-in.
+const POST_LOGIN_REDIRECT_KEY = "post_login_redirect";
 // Refresh this many ms before the access token's exp so a request never races
 // expiry.
 const REFRESH_SKEW_MS = 60_000;
@@ -149,7 +152,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(accessToken);
     scheduleRefresh(accessToken);
     verifyToken(accessToken);
-    router.push("/dashboard");
+    // If a flow (e.g. accepting a board invitation) parked a return path before
+    // sending the user to log in, honor it once; otherwise land on the dashboard.
+    const redirect = localStorage.getItem(POST_LOGIN_REDIRECT_KEY);
+    if (redirect) {
+      localStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+      router.push(redirect);
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   return (
