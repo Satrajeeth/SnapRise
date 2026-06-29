@@ -80,6 +80,11 @@ export const authApi = {
       body: formData.toString(),
     });
   },
+  refresh: (refreshToken: string) =>
+    apiRequest(AUTH_BASE_URL, "/auth/jwt/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }),
   forgotPassword: (email: string, proofToken: string) =>
     apiRequest(AUTH_BASE_URL, "/auth/forgot-password", {
       method: "POST",

@@ -77,7 +77,7 @@ function OtpVerifyContent() {
           // Auto login
           const loginResponse = await authApi.login(signupData.email, signupData.password);
           sessionStorage.removeItem("signup_data");
-          login(loginResponse.access_token);
+          login(loginResponse.access_token, loginResponse.refresh_token);
         } catch (err: any) {
           if (err.message === "REGISTER_USER_ALREADY_EXISTS") {
             setError("An account with this email already exists. Please login.");

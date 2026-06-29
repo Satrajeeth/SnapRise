@@ -72,10 +72,27 @@ async def get_user_manager(
 
 bearer_transport = BearerTransport(tokenUrl="auth/jwt/login")
 
+# Refresh tokens carry a distinct audience so they can never be accepted as an
+# access token (and an access token can never be used to refresh). Both are
+# signed with the same secret but validated against their own audience.
+REFRESH_TOKEN_AUDIENCE = "snaprise:auth:refresh"
+
 
 def get_jwt_strategy() -> JWTStrategy[models.UP, models.ID]:
     settings = get_settings()
-    return JWTStrategy(secret=settings.auth_jwt_secret, lifetime_seconds=3600)
+    return JWTStrategy(
+        secret=settings.auth_jwt_secret,
+        lifetime_seconds=settings.auth_jwt_access_lifetime_seconds,
+    )
+
+
+def get_refresh_jwt_strategy() -> JWTStrategy[models.UP, models.ID]:
+    settings = get_settings()
+    return JWTStrategy(
+        secret=settings.auth_jwt_secret,
+        lifetime_seconds=settings.auth_jwt_refresh_lifetime_seconds,
+        token_audience=[REFRESH_TOKEN_AUDIENCE],
+    )
 
 
 auth_backend = AuthenticationBackend(

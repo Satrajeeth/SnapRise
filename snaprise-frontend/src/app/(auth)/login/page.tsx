@@ -32,7 +32,7 @@ export default function LoginPage() {
 
     try {
       const response = await authApi.login(email, password);
-      login(response.access_token);
+      login(response.access_token, response.refresh_token);
     } catch (err: any) {
       if (err.message === "LOGIN_BAD_CREDENTIALS") {
         setError("Invalid email or password");

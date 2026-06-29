@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.reset import router as reset_router
+from app.api.token import router as token_router
 from app.config import get_settings
 from app.db import User, create_db_and_tables
 from app.schemas import UserCreate, UserRead, UserUpdate
@@ -33,6 +34,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Registered before the default auth router so our /auth/jwt/login (which also
+# returns a refresh token) takes precedence; the default router still provides
+# /auth/jwt/logout.
+app.include_router(
+    token_router,
+    prefix="/auth/jwt",
+    tags=["auth"],
+)
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
