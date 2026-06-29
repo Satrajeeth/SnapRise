@@ -78,9 +78,35 @@ bearer_transport = BearerTransport(tokenUrl="auth/jwt/login")
 REFRESH_TOKEN_AUDIENCE = "snaprise:auth:refresh"
 
 
+class SnapRiseJWTStrategy(JWTStrategy[models.UP, models.ID]):
+    """JWTStrategy that embeds ``is_superuser`` as a token claim.
+
+    fastapi-users' default access token only carries ``sub`` (the user id) and
+    ``aud``. The backoffice / admin_service need to gate on superuser status, but
+    the repo's hard rule is "no backend->backend HTTP calls". So instead of having
+    admin_service call auth's ``/users/me`` on every request, we surface the bit
+    that matters directly in the signed access token. Any service that already
+    verifies these JWTs (board_service, admin_service) can then trust the claim
+    because its integrity rests on the shared signing secret.
+
+    Only the *access* token strategy uses this subclass; the refresh strategy
+    stays a plain JWTStrategy (the claim isn't needed to mint new access tokens).
+    """
+
+    async def write_token(self, user: models.UP) -> str:
+        data = {
+            "sub": str(user.id),
+            "aud": self.token_audience,
+            "is_superuser": bool(getattr(user, "is_superuser", False)),
+        }
+        return generate_jwt(
+            data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
+        )
+
+
 def get_jwt_strategy() -> JWTStrategy[models.UP, models.ID]:
     settings = get_settings()
-    return JWTStrategy(
+    return SnapRiseJWTStrategy(
         secret=settings.auth_jwt_secret,
         lifetime_seconds=settings.auth_jwt_access_lifetime_seconds,
     )

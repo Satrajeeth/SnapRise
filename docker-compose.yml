@@ -13,6 +13,7 @@ services:
       - POSTGRES_DB=otp_db
       - AUTH_DATABASE_NAME=auth_db
       - BOARD_DATABASE_NAME=board_db
+      - ADMIN_DATABASE_NAME=admin_db
     ports:
       - "5434:5432"
     healthcheck:
@@ -110,8 +111,28 @@ services:
     environment:
       DATABASE_URL: ${BOARD_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/board_db}
       SYNC_DATABASE_URL: ${BOARD_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/board_db}
+      # Lead outbox drain target (Phase 2). board_service forwards undelivered
+      # lead_outbox rows to admin_service; tolerant of admin_api being down.
+      ADMIN_SERVICE_URL: ${ADMIN_SERVICE_URL:-http://admin_api:8000}
+      ADMIN_INGEST_SECRET: ${ADMIN_INGEST_SECRET:-super-secret-ingest-key}
     ports:
       - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admin_api:
+    build: ./admin_service
+    container_name: admin_api
+    restart: on-failure
+    env_file:
+      - ./admin_service/.env
+    environment:
+      DATABASE_URL: ${ADMIN_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/admin_db}
+      SYNC_DATABASE_URL: ${ADMIN_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/admin_db}
+      ADMIN_INGEST_SECRET: ${ADMIN_INGEST_SECRET:-super-secret-ingest-key}
+    ports:
+      - "8004:8000"
     depends_on:
       postgres:
         condition: service_healthy

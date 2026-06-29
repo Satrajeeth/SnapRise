@@ -1,44 +1,24 @@
-import asyncio
-import logging
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api.v1.endpoints import router as api_router
-from app.services.lead_drainer import lead_drain_loop
 
-logger = logging.getLogger(__name__)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Start the lead_outbox drainer as a background task. It forwards undelivered
-    # leads to admin_service (the isolated cross-service hop) without blocking any
-    # request path.
-    drain_task = asyncio.create_task(lead_drain_loop())
-    try:
-        yield
-    finally:
-        drain_task.cancel()
-        try:
-            await drain_task
-        except asyncio.CancelledError:
-            pass
+def _allowed_origins() -> list[str]:
+    origins = [origin.strip() for origin in settings.allowed_origins.split(",")]
+    return [origin for origin in origins if origin]
 
 
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     openapi_url=f"{settings.api_prefix}/openapi.json",
-    lifespan=lifespan,
 )
 
 # Set up CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

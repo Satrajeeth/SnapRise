@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+ADMIN_DATABASE_NAME=${ADMIN_DATABASE_NAME:-admin_db}
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+  SELECT 'CREATE DATABASE "${ADMIN_DATABASE_NAME}"'
+  WHERE NOT EXISTS (
+    SELECT FROM pg_database WHERE datname = '${ADMIN_DATABASE_NAME}'
+  )\gexec
+EOSQL

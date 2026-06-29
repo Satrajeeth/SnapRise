@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     # How long a pending invitation stays valid. 168h = 7 days.
     invite_token_ttl_hours: int = Field(default=168, alias="INVITE_TOKEN_TTL_HOURS")
 
+    # Lead outbox drain (Phase 2) — a background task forwards undelivered
+    # lead_outbox rows to admin_service's internal ingest endpoint. This is the
+    # one isolated cross-service hop; it never blocks the invite request path and
+    # survives admin_service being down (rows stay undelivered, retried later).
+    admin_service_url: str = Field(default="http://admin_api:8000", alias="ADMIN_SERVICE_URL")
+    admin_ingest_secret: str = Field(default="super-secret-ingest-key", alias="ADMIN_INGEST_SECRET")
+    lead_drain_enabled: bool = Field(default=True, alias="LEAD_DRAIN_ENABLED")
+    lead_drain_interval_seconds: int = Field(default=30, alias="LEAD_DRAIN_INTERVAL_SECONDS")
+    lead_drain_batch_size: int = Field(default=100, alias="LEAD_DRAIN_BATCH_SIZE")
+
     # AI / LLM Configuration
     default_llm_provider: str = Field(default="local", alias="DEFAULT_LLM_PROVIDER")
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
