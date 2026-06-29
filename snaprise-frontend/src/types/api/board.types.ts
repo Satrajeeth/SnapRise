@@ -239,3 +239,33 @@ export interface BoardTemplateUpdate {
   is_public?: boolean | null;
   payload?: BoardTemplatePayload | null;
 }
+
+// ---- AI & metrics responses ----
+// Shapes confirmed against the Board Service handlers (responses are untyped
+// `{}` in the OpenAPI spec, so these mirror the actual returned dicts).
+export interface BoardMetrics {
+  total_tasks: number;
+  column_distribution: Record<string, number>;
+  subtask_progress_percentage: number;
+}
+
+export interface AiAnalyzeResult {
+  task_id: string;
+  summary: string;
+  blockers: string;
+}
+
+export interface AiClassifyResult {
+  task_id: string;
+  suggested_column: string;
+  available_columns: string[];
+}
+
+export interface SuggestColumnResult {
+  suggested_column: string;
+}
+
+export interface SmartSortResult {
+  /** Raw natural-language suggestions from the LLM (not yet structured). */
+  suggestions: string;
+}

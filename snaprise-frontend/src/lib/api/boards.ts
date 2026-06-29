@@ -23,6 +23,11 @@ import type {
   BoardTemplate,
   BoardTemplateCreate,
   BoardTemplateUpdate,
+  BoardMetrics,
+  AiAnalyzeResult,
+  AiClassifyResult,
+  SuggestColumnResult,
+  SmartSortResult,
 } from "@/types/api/board.types";
 
 const BOARD_BASE_URL = process.env.NEXT_PUBLIC_BOARD_SERVICE_URL;
@@ -179,18 +184,18 @@ export const boardApi = {
     apiRequest(BOARD_BASE_URL, `/v1/templates/${templateId}`, withAuth(token, { method: "DELETE" })),
 
   // ---- AI & smart features ----
-  analyzeTask: (token: string, taskId: string): Promise<Record<string, unknown>> =>
+  analyzeTask: (token: string, taskId: string): Promise<AiAnalyzeResult> =>
     apiRequest(BOARD_BASE_URL, `/v1/tasks/${taskId}/ai-analyze`, withAuth(token, { method: "POST" })),
 
-  classifyTask: (token: string, taskId: string): Promise<Record<string, unknown>> =>
+  classifyTask: (token: string, taskId: string): Promise<AiClassifyResult> =>
     apiRequest(BOARD_BASE_URL, `/v1/tasks/${taskId}/ai-classify`, withAuth(token, { method: "POST" })),
 
-  suggestTaskColumn: (token: string, taskId: string): Promise<Record<string, unknown>> =>
+  suggestTaskColumn: (token: string, taskId: string): Promise<SuggestColumnResult> =>
     apiRequest(BOARD_BASE_URL, `/v1/tasks/${taskId}/suggest-column`, withAuth(token, { method: "POST" })),
 
-  smartSortBoard: (token: string, boardId: string): Promise<Record<string, unknown>> =>
+  smartSortBoard: (token: string, boardId: string): Promise<SmartSortResult> =>
     apiRequest(BOARD_BASE_URL, `/v1/boards/${boardId}/smart-sort`, withAuth(token, { method: "POST" })),
 
-  getBoardMetrics: (token: string, boardId: string): Promise<Record<string, unknown>> =>
+  getBoardMetrics: (token: string, boardId: string): Promise<BoardMetrics> =>
     apiRequest(BOARD_BASE_URL, `/v1/boards/${boardId}/metrics`, withAuth(token, { method: "GET" })),
 };

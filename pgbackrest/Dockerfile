@@ -11,8 +11,7 @@ COPY setup_stanza.sh /docker-entrypoint-initdb.d/
 RUN chmod +x /docker-entrypoint-initdb.d/setup_stanza.sh
 
 COPY crontab /etc/cron.d/pgbackrest-cron
-RUN chmod 0644 /etc/cron.d/pgbackrest-cron && \
-    crontab -u postgres /etc/cron.d/pgbackrest-cron
+RUN chmod 0644 /etc/cron.d/pgbackrest-cron
 
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh

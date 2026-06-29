@@ -15,6 +15,7 @@ from app.schemas.subtask import Subtask, SubtaskCreate, SubtaskUpdate
 from app.schemas.task_link import TaskLink, TaskLinkCreate
 from app.schemas.responses import BoardDetailed, TaskDetailed
 from app.schemas.board_template import BoardTemplate as BoardTemplateSchema, BoardTemplateCreate, BoardTemplateUpdate
+from app.models.subtask import Subtask as SubtaskModel
 from app.services.board_ops import BoardOps
 from app.services.ai_service import get_ai_service
 from app.services.security_manager import get_security_manager

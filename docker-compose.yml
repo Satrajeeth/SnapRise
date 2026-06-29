@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ----------------------
   # DATABASES & BROKERS
@@ -117,13 +115,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
-  smtp:
-    build: ./smtp-server
-    container_name: smtp
-    ports:
-      - "2525:25"
-    restart: always
 
   frontend:
     build: ./snaprise-frontend

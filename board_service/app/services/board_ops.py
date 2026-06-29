@@ -80,6 +80,10 @@ class BoardOps:
 
         security_manager.process_board_for_storage(board)
         await db.flush()
+        # Reload server-side columns (e.g. updated_at via onupdate) within the
+        # async context, otherwise response serialization triggers a lazy load
+        # outside the greenlet and raises MissingGreenlet.
+        await db.refresh(board)
         security_manager.process_board_after_load(board)
         return board
     
@@ -110,6 +114,7 @@ class BoardOps:
             setattr(column, key, value)
 
         await db.flush()
+        await db.refresh(column)
         return column
     
     @staticmethod
@@ -236,6 +241,7 @@ class BoardOps:
 
         security_manager.process_task_for_storage(task, board_enc)
         await db.flush()
+        await db.refresh(task)
         security_manager.process_task_after_load(task, board_enc)
         return task
     
@@ -305,6 +311,7 @@ class BoardOps:
             setattr(subtask, key, value)
 
         await db.flush()
+        await db.refresh(subtask)
         return subtask
     
     @staticmethod
@@ -402,6 +409,7 @@ class BoardOps:
             
         member.role = role
         await db.flush()
+        await db.refresh(member)
         return member
 
     @staticmethod
@@ -475,6 +483,7 @@ class BoardOps:
         for key, value in update_data.items():
             setattr(template, key, value)
         await db.flush()
+        await db.refresh(template)
         return template
 
     @staticmethod

@@ -3,6 +3,8 @@
 // for both list responses (flat) and detailed responses (nested).
 // The exhaustive, generated contract lives in ./api/board.types.
 
+import type { LifecycleStage, EncryptionStatus } from "./api/board.types";
+
 export type {
   LifecycleStage,
   EncryptionStatus,
@@ -26,6 +28,8 @@ export interface Task {
   title: string;
   content?: string | null;
   position: number;
+  encryption_status?: EncryptionStatus;
+  ai_metadata?: Record<string, unknown>;
   subtasks?: Subtask[];
   created_at?: string;
   updated_at?: string;
@@ -46,6 +50,8 @@ export interface Board {
   id: string;
   name: string;
   description?: string | null;
+  lifecycle_stage?: LifecycleStage;
+  encryption_status?: EncryptionStatus;
   columns?: Column[];
   created_at?: string;
   updated_at?: string;
