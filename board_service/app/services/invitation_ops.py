@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.domain.enums import BoardRole, InvitationStatus
+from app.models.email_outbox import EmailOutbox
 from app.models.invitation import BoardInvitation
 from app.models.lead_outbox import LeadOutbox
 from app.services.board_ops import BoardOps
@@ -26,6 +27,34 @@ def _hash_token(raw_token: str) -> str:
     Same one-way scheme used for API keys in api/v1/dependencies.py.
     """
     return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+def _render_invite_email(accept_link: str, role: BoardRole, expires_at) -> tuple[str, str, str]:
+    """Render the invitation email (subject, html, text). Kept deliberately
+    simple inline HTML — no template engine dependency — since it's the only
+    email board_service sends."""
+    subject = "You've been invited to a SnapRise board"
+    html = (
+        f"<div style=\"font-family:sans-serif;max-width:480px;margin:auto\">"
+        f"<h2>You've been invited to a board</h2>"
+        f"<p>You've been invited to collaborate on a SnapRise board as "
+        f"<strong>{role.value}</strong>.</p>"
+        f"<p><a href=\"{accept_link}\" "
+        f"style=\"display:inline-block;padding:12px 20px;background:#000;color:#fff;"
+        f"border-radius:10px;text-decoration:none\">Accept invitation</a></p>"
+        f"<p style=\"color:#666;font-size:13px\">Or paste this link into your browser:<br>"
+        f"<a href=\"{accept_link}\">{accept_link}</a></p>"
+        f"<p style=\"color:#999;font-size:12px\">This invitation expires on "
+        f"{expires_at.strftime('%Y-%m-%d %H:%M UTC')}.</p>"
+        f"</div>"
+    )
+    text = (
+        "You've been invited to collaborate on a SnapRise board "
+        f"as {role.value}.\n\n"
+        f"Accept your invitation: {accept_link}\n\n"
+        f"This invitation expires on {expires_at.strftime('%Y-%m-%d %H:%M UTC')}."
+    )
+    return subject, html, text
 
 
 class InvitationOps:
@@ -56,6 +85,19 @@ class InvitationOps:
             payload=payload or {},
         )
         db.add(lead)
+        await db.flush()
+
+    @staticmethod
+    async def queue_invite_email(
+        db: AsyncSession,
+        to_email: str,
+        subject: str,
+        html: str,
+        text: str,
+    ) -> None:
+        """Append a rendered invite email to the outbox (Phase 4). A background
+        drainer forwards it to otp_service; no network call on this path."""
+        db.add(EmailOutbox(to_email=to_email, subject=subject, html=html, text=text))
         await db.flush()
 
     @staticmethod
@@ -117,22 +159,32 @@ class InvitationOps:
             payload={"role": role.value},
         )
 
-        # CONSOLE email (Phase 1): no SMTP yet — the accept link is logged so it
-        # can be copied from `docker logs board_api`. Phase 4 swaps this for a
-        # real send via otp_service. Mirrors auth's console password-reset.
+        # Deliver the accept link. EMAIL_DELIVERY_MODE picks how:
+        #   otp     -> queue an email_outbox row; the email drainer sends it via
+        #              otp_service (Phase 4). Non-blocking, retried until delivered.
+        #   console -> just log the link (Phase 1 dev default); copy it from
+        #              `docker logs board_api`. Mirrors auth's console reset mode.
         accept_link = f"{settings.frontend_base_url}/invite/{raw_token}"
-        logger.info(
-            "\n"
-            "========================================\n"
-            " BOARD INVITATION (console delivery)\n"
-            "  to:      %s\n"
-            "  board:   %s\n"
-            "  role:    %s\n"
-            "  link:    %s\n"
-            "  expires: %s\n"
-            "========================================",
-            email, board_id, role.value, accept_link, expires_at.isoformat(),
-        )
+        if settings.email_delivery_mode == "otp":
+            subject, html, text = _render_invite_email(accept_link, role, expires_at)
+            await InvitationOps.queue_invite_email(db, email, subject, html, text)
+            logger.info(
+                "BOARD INVITATION queued for email delivery to %s (board %s, role %s)",
+                email, board_id, role.value,
+            )
+        else:
+            logger.info(
+                "\n"
+                "========================================\n"
+                " BOARD INVITATION (console delivery)\n"
+                "  to:      %s\n"
+                "  board:   %s\n"
+                "  role:    %s\n"
+                "  link:    %s\n"
+                "  expires: %s\n"
+                "========================================",
+                email, board_id, role.value, accept_link, expires_at.isoformat(),
+            )
 
         return invitation
 

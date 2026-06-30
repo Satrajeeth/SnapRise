@@ -49,6 +49,15 @@ services:
       timeout: 5s
       retries: 10
 
+  # Dev SMTP sink (Phase 4). Catches all outbound email so the invite flow can be
+  # tested end-to-end without a real provider. Web UI at http://localhost:8025.
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
   # ----------------------
   # APIs & SERVICES
   # ----------------------
@@ -74,6 +83,16 @@ services:
       DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
       SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
       DEV_MODE: "true"
+      # Phase 4: route SMTP at the mailhog dev sink and enable the SMTP fallback
+      # so transactional email (board invites) is deliverable without a real
+      # provider. Blank creds because mailhog needs no auth.
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "false"
+      SMTP_FALLBACK_ENABLED: "true"
+      EMAIL_SEND_SECRET: ${EMAIL_SEND_SECRET:-super-secret-email-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -94,6 +113,12 @@ services:
     environment:
       DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
       SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "false"
+      SMTP_FALLBACK_ENABLED: "true"
     depends_on:
       redis:
         condition: service_healthy
@@ -115,6 +140,11 @@ services:
       # lead_outbox rows to admin_service; tolerant of admin_api being down.
       ADMIN_SERVICE_URL: ${ADMIN_SERVICE_URL:-http://admin_api:8000}
       ADMIN_INGEST_SECRET: ${ADMIN_INGEST_SECRET:-super-secret-ingest-key}
+      # Invitation email delivery (Phase 4). Default 'console' (just logs the
+      # link); set EMAIL_DELIVERY_MODE=otp to queue + send real email via otp_api.
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-console}
+      OTP_SERVICE_URL: ${OTP_SERVICE_URL:-http://otp_api:8000}
+      EMAIL_SEND_SECRET: ${EMAIL_SEND_SECRET:-super-secret-email-key}
     ports:
       - "8002:8000"
     depends_on:
@@ -147,6 +177,19 @@ services:
       - auth_api
       - otp_api
       - board_api
+
+  # Internal admin console (Phase 3). Separate origin/port from the customer app
+  # so its localStorage tokens are isolated. NEXT_PUBLIC_* URLs are baked at build
+  # from snaprise-backoffice/.env and point at host-published ports.
+  backoffice:
+    build: ./snaprise-backoffice
+    container_name: snaprise-backoffice
+    ports:
+      - "3001:3000"
+    restart: on-failure
+    depends_on:
+      - auth_api
+      - admin_api
 
 volumes:
   postgres_data:

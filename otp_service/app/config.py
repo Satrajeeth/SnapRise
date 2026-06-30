@@ -68,6 +68,12 @@ class Settings(BaseSettings):
         default=900, alias="OTP_PROOF_LIFETIME_SECONDS"
     )
 
+    # Shared secret protecting POST /v1/email/send (board_service -> otp_service).
+    # Must match board_service's EMAIL_SEND_SECRET. Compose-network only.
+    email_send_secret: str = Field(
+        default="super-secret-email-key", alias="EMAIL_SEND_SECRET"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,

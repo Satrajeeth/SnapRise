@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 from app.domain.enums import ProviderErrorType, ProviderTier
 from app.models.provider_config import ProviderConfig
-from app.providers.base import ProviderSendPayload, ProviderSendResult
+from app.providers.base import (
+    BaseProviderAdapter,
+    ProviderSendPayload,
+    ProviderSendResult,
+    TransactionalEmailPayload,
+)
 from app.services.circuit_breaker import ProviderCircuitBreaker
 from app.services.providers import ProviderRegistry
 from app.services.quota import QuotaManager
@@ -54,6 +60,26 @@ class RoutingEngine:
         providers: list[ProviderConfig],
         payload: ProviderSendPayload,
     ) -> RoutingOutcome:
+        """Route an OTP-code email through the eligible providers."""
+        return await self._route(providers, lambda adapter: adapter.guarded_send(payload))
+
+    async def dispatch_transactional(
+        self,
+        providers: list[ProviderConfig],
+        payload: TransactionalEmailPayload,
+    ) -> RoutingOutcome:
+        """Route a free-form transactional email through the same provider
+        selection (tier/priority/weight/health/quota/circuit-breaker) as OTP —
+        only the per-provider send call differs."""
+        return await self._route(
+            providers, lambda adapter: adapter.guarded_send_transactional(payload)
+        )
+
+    async def _route(
+        self,
+        providers: list[ProviderConfig],
+        send: Callable[[BaseProviderAdapter], Awaitable[ProviderSendResult]],
+    ) -> RoutingOutcome:
         attempt_results: list[ProviderSendResult] = []
         grouped = {
             ProviderTier.free: [provider for provider in providers if provider.tier == ProviderTier.free],
@@ -88,7 +114,7 @@ class RoutingEngine:
             for provider_id in order:
                 provider = lookup[provider_id]
                 adapter = await self.registry.get_adapter(provider)
-                result = await adapter.guarded_send(payload)
+                result = await send(adapter)
                 attempt_results.append(result)
                 if result.success:
                     await self.quota_manager.record_send(provider)

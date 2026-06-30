@@ -8,8 +8,9 @@ from app.models.task_link import TaskLink
 from app.models.board_template import BoardTemplate
 from app.models.invitation import BoardInvitation
 from app.models.lead_outbox import LeadOutbox
+from app.models.email_outbox import EmailOutbox
 
 __all__ = [
     "Board", "Column", "Task", "Subtask", "BoardMember", "ColumnAccess",
-    "TaskLink", "BoardTemplate", "BoardInvitation", "LeadOutbox",
+    "TaskLink", "BoardTemplate", "BoardInvitation", "LeadOutbox", "EmailOutbox",
 ]

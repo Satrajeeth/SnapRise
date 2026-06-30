@@ -8,24 +8,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.v1.endpoints import router as api_router
 from app.services.lead_drainer import lead_drain_loop
+from app.services.email_drainer import email_drain_loop
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start the lead_outbox drainer as a background task. It forwards undelivered
-    # leads to admin_service (the isolated cross-service hop) without blocking any
-    # request path.
-    drain_task = asyncio.create_task(lead_drain_loop())
+    # Background outbox drainers (isolated cross-service hops; never the request
+    # path): lead_outbox -> admin_service (Phase 2), email_outbox -> otp_service
+    # (Phase 4). Both tolerate their target being down and retry.
+    tasks = [
+        asyncio.create_task(lead_drain_loop()),
+        asyncio.create_task(email_drain_loop()),
+    ]
     try:
         yield
     finally:
-        drain_task.cancel()
-        try:
-            await drain_task
-        except asyncio.CancelledError:
-            pass
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(

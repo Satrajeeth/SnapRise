@@ -1,0 +1,6 @@
+# Keep shell scripts and other container-consumed text as LF, even on Windows
+# checkouts — CRLF in an entrypoint script breaks the shebang inside Linux
+# containers (e.g. pgbackrest/start.sh). See pgbackrest/Dockerfile.
+*.sh text eol=lf
+pgbackrest/crontab text eol=lf
+pgbackrest/pgbackrest.conf text eol=lf

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     lead_drain_enabled: bool = Field(default=True, alias="LEAD_DRAIN_ENABLED")
     lead_drain_interval_seconds: int = Field(default=30, alias="LEAD_DRAIN_INTERVAL_SECONDS")
     lead_drain_batch_size: int = Field(default=100, alias="LEAD_DRAIN_BATCH_SIZE")
+
+    # Invitation email delivery (Phase 4).
+    #   console -> log the accept link (dev default, Phase 1 behavior)
+    #   otp     -> queue an email_outbox row; a drainer POSTs it to otp_service
+    # Mirrors auth_service's password_reset_delivery_mode so console stays default.
+    email_delivery_mode: Literal["console", "otp"] = Field(
+        default="console", alias="EMAIL_DELIVERY_MODE"
+    )
+    otp_service_url: str = Field(default="http://otp_api:8000", alias="OTP_SERVICE_URL")
+    email_send_secret: str = Field(default="super-secret-email-key", alias="EMAIL_SEND_SECRET")
+    email_drain_enabled: bool = Field(default=True, alias="EMAIL_DRAIN_ENABLED")
+    email_drain_interval_seconds: int = Field(default=30, alias="EMAIL_DRAIN_INTERVAL_SECONDS")
+    email_drain_batch_size: int = Field(default=50, alias="EMAIL_DRAIN_BATCH_SIZE")
 
     # AI / LLM Configuration
     default_llm_provider: str = Field(default="local", alias="DEFAULT_LLM_PROVIDER")

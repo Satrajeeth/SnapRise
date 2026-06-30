@@ -2,6 +2,7 @@ from app.config import get_settings
 from app.services.audit import AuditLogger
 from app.services.cache import RedisCache
 from app.services.circuit_breaker import ProviderCircuitBreaker
+from app.services.email_service import EmailService
 from app.services.otp_service import OtpService
 from app.services.policies import BackoffPolicy
 from app.services.providers import ProviderRegistry
@@ -10,6 +11,7 @@ from app.services.retry_dispatcher import RetryDispatcher
 from app.services.routing import RoutingEngine
 
 _otp_service = None
+_email_service = None
 
 
 def get_otp_service() -> OtpService:
@@ -43,3 +45,23 @@ def get_otp_service() -> OtpService:
             quota_manager=quota_manager,
         )
     return _otp_service
+
+
+def get_email_service() -> EmailService:
+    global _email_service
+    if _email_service is None:
+        settings = get_settings()
+        cache = RedisCache()
+        quota_manager = QuotaManager(cache)
+        circuit_breaker = ProviderCircuitBreaker(
+            cache=cache,
+            failure_threshold=settings.provider_circuit_failure_threshold,
+            open_seconds=settings.provider_circuit_open_seconds,
+        )
+        routing_engine = RoutingEngine(
+            registry=ProviderRegistry(),
+            quota_manager=quota_manager,
+            circuit_breaker=circuit_breaker,
+        )
+        _email_service = EmailService(settings=settings, routing_engine=routing_engine)
+    return _email_service

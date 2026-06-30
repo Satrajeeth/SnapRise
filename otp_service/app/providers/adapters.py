@@ -21,6 +21,7 @@ from app.providers.base import (
     ProviderSendResult,
     QuotaExhaustedProviderError,
     RetryableProviderError,
+    TransactionalEmailPayload,
 )
 
 
@@ -44,6 +45,44 @@ class SmtpEmailProvider(BaseProviderAdapter):
         message["From"] = from_email
         message["To"] = payload.email
         message.set_content(f"Your OTP is: {payload.code}. It expires in 5 minutes.")
+
+        await asyncio.to_thread(
+            self._send_message,
+            host,
+            port,
+            timeout,
+            message,
+            username,
+            password,
+            use_tls,
+            use_ssl,
+        )
+        return ProviderSendResult(
+            provider_id=self.provider_id, success=True, tier=self.tier
+        )
+
+    async def send_transactional_email(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        host = self.settings.get("host", "smtp")
+        port = int(self.settings.get("port", 25))
+        timeout = int(self.settings.get("timeout_seconds", 10))
+        from_email = self.settings.get("from_email", "no-reply@smtp.local")
+        username = self.settings.get("username")
+        password = self.settings.get("password")
+        use_tls = bool(self.settings.get("use_tls", False))
+        use_ssl = bool(self.settings.get("use_ssl", False))
+
+        message = EmailMessage()
+        message["Subject"] = payload.subject
+        message["From"] = from_email
+        message["To"] = payload.to_email
+        # A text part is required for a valid multipart/alternative; fall back to
+        # the html if no text was supplied. The html is attached as the richer
+        # alternative so clients that render html show it.
+        message.set_content(payload.text or payload.html)
+        if payload.html:
+            message.add_alternative(payload.html, subtype="html")
 
         await asyncio.to_thread(
             self._send_message,
@@ -182,6 +221,34 @@ class LoggingEmailProvider(BaseProviderAdapter):
             provider_id=self.provider_id, success=True, tier=self.tier
         )
 
+    async def send_transactional_email(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        # Same failure-injection modes as the OTP path, so the retry behavior of
+        # /v1/email/send can be exercised in tests/dev without a real provider.
+        mode = self.settings.get("mode", "success")
+        if mode == "retryable":
+            raise RetryableProviderError("temporary upstream error")
+        if mode == "quota":
+            raise QuotaExhaustedProviderError("quota exhausted")
+        if mode == "auth":
+            raise AuthProviderError("provider authentication failed")
+        if mode == "non_retryable":
+            raise NonRetryableProviderError("permanent provider failure")
+        logger.info(
+            "\n"
+            "┌──────────────────────────────────────────┐\n"
+            "│       📧 DEV MODE — TRANSACTIONAL        │\n"
+            "├──────────────────────────────────────────┤\n"
+            "  To      : %s\n"
+            "  Subject : %s\n"
+            "└──────────────────────────────────────────┘",
+            payload.to_email, payload.subject,
+        )
+        return ProviderSendResult(
+            provider_id=self.provider_id, success=True, tier=self.tier
+        )
+
     async def check_health(self) -> HealthResult:
         if self.settings.get("mode") == "unhealthy":
             return HealthResult(healthy=False, reason="provider marked unhealthy")
@@ -236,6 +303,40 @@ class BrevoHttpEmailProvider(BaseProviderAdapter):
                 raise NonRetryableProviderError(
                     f"Brevo API error: {resp.status} {text}"
                 )
+
+    async def send_transactional_email(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        api_key = self.settings.get("api_key")
+        from_email = self.settings.get("from_email", "noreply@example.com")
+
+        if not api_key:
+            raise AuthProviderError("Brevo API key not configured")
+
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {"api-key": api_key, "Content-Type": "application/json"}
+        body = {
+            "sender": {"email": from_email, "name": "SnapRise"},
+            "to": [{"email": payload.to_email}],
+            "subject": payload.subject,
+            "htmlContent": payload.html,
+            "textContent": payload.text or payload.html,
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status == 201:
+                    return ProviderSendResult(
+                        provider_id=self.provider_id, success=True, tier=self.tier
+                    )
+                text = await resp.text()
+                if resp.status == 401 or "unauthorized" in text.lower():
+                    raise AuthProviderError(f"Brevo API auth failed: {text}")
+                if resp.status >= 500:
+                    raise RetryableProviderError(f"Brevo API error: {resp.status} {text}")
+                raise NonRetryableProviderError(f"Brevo API error: {resp.status} {text}")
 
     async def check_health(self) -> HealthResult:
         api_key = self.settings.get("api_key")
@@ -309,6 +410,40 @@ class SendGridEmailProvider(BaseProviderAdapter):
         except Exception as e:
             raise RetryableProviderError(f"SendGrid send failed: {str(e)}")
 
+    async def send_transactional_email(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        api_key = self.settings.get("api_key")
+        from_email = self.settings.get("from_email", "noreply@example.com")
+
+        if not api_key:
+            raise AuthProviderError("SendGrid API key not configured")
+
+        try:
+            sg = SendGridAPIClient(api_key)
+            message = Mail(
+                from_email=Email(from_email),
+                to_emails=To(payload.to_email),
+                subject=payload.subject,
+                plain_text_content=payload.text or payload.html,
+                html_content=payload.html,
+            )
+            response = await asyncio.to_thread(sg.send, message)
+
+            if response.status_code in [200, 201, 202]:
+                return ProviderSendResult(
+                    provider_id=self.provider_id, success=True, tier=self.tier
+                )
+            if response.status_code == 401:
+                raise AuthProviderError(f"SendGrid API auth failed: {response.status_code}")
+            if response.status_code >= 500:
+                raise RetryableProviderError(f"SendGrid API error: {response.status_code}")
+            raise NonRetryableProviderError(f"SendGrid API error: {response.status_code}")
+        except (AuthProviderError, RetryableProviderError, NonRetryableProviderError):
+            raise
+        except Exception as e:
+            raise RetryableProviderError(f"SendGrid send failed: {str(e)}")
+
     async def check_health(self) -> HealthResult:
         api_key = self.settings.get("api_key")
         if not api_key:
@@ -366,6 +501,50 @@ class MailjetHttpEmailProvider(BaseProviderAdapter):
                     "Subject": "Your OTP Code",
                     "HTMLPart": f"<p>Your OTP is: <strong>{payload.code}</strong></p><p>It expires in 5 minutes.</p>",
                     "TextPart": f"Your OTP is: {payload.code}. It expires in 5 minutes.",
+                }
+            ]
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status == 200:
+                    return ProviderSendResult(
+                        provider_id=self.provider_id, success=True, tier=self.tier
+                    )
+                text = await resp.text()
+                if resp.status == 401 or "unauthorized" in text.lower():
+                    raise AuthProviderError(f"Mailjet API auth failed: {text}")
+                if resp.status >= 500:
+                    raise RetryableProviderError(f"Mailjet API error: {resp.status} {text}")
+                raise NonRetryableProviderError(f"Mailjet API error: {resp.status} {text}")
+
+    async def send_transactional_email(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        api_key = self.settings.get("api_key")
+        secret_key = self.settings.get("secret_key")
+        from_email = self.settings.get("from_email", "noreply@example.com")
+
+        if not api_key or not secret_key:
+            raise AuthProviderError("Mailjet API credentials not configured")
+
+        url = "https://api.mailjet.com/v3.1/send"
+        auth_string = f"{api_key}:{secret_key}"
+        base64_auth = base64.b64encode(auth_string.encode("ascii")).decode("ascii")
+        headers = {
+            "Authorization": f"Basic {base64_auth}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "Messages": [
+                {
+                    "From": {"Email": from_email, "Name": "SnapRise"},
+                    "To": [{"Email": payload.to_email}],
+                    "Subject": payload.subject,
+                    "HTMLPart": payload.html,
+                    "TextPart": payload.text or payload.html,
                 }
             ]
         }

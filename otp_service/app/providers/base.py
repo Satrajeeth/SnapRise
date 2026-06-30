@@ -18,6 +18,21 @@ class ProviderSendPayload:
 
 
 @dataclass(slots=True)
+class TransactionalEmailPayload:
+    """A free-form email (subject/html/text), as opposed to the fixed OTP-code
+    email of ProviderSendPayload. Used by the /v1/email/send path so other
+    services (board invitations) can deliver real email through otp_service's
+    existing provider routing + fallback, without duplicating SMTP anywhere."""
+
+    request_id: str
+    to_email: str
+    subject: str
+    html: str
+    text: str | None = None
+    tenant_id: str = "default"
+
+
+@dataclass(slots=True)
 class ProviderSendResult:
     provider_id: str
     success: bool
@@ -72,6 +87,16 @@ class BaseProviderAdapter(ABC):
     async def send_email_otp(self, payload: ProviderSendPayload) -> ProviderSendResult:
         raise NotImplementedError
 
+    async def send_transactional_email(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        """Send a free-form email. Not abstract: adapters opt in (every concrete
+        adapter here implements it). The default refuses, so a provider that
+        only knows OTP can't silently drop a transactional send."""
+        raise NonRetryableProviderError(
+            f"{self.provider_id} does not support transactional email"
+        )
+
     @abstractmethod
     async def check_health(self) -> HealthResult:
         raise NotImplementedError
@@ -90,9 +115,20 @@ class BaseProviderAdapter(ABC):
         )
 
     async def guarded_send(self, payload: ProviderSendPayload) -> ProviderSendResult:
+        return await self._guarded(self.send_email_otp(payload))
+
+    async def guarded_send_transactional(
+        self, payload: TransactionalEmailPayload
+    ) -> ProviderSendResult:
+        return await self._guarded(self.send_transactional_email(payload))
+
+    async def _guarded(self, send_coro) -> ProviderSendResult:
+        """Time a send and turn any exception into a failed ProviderSendResult
+        (classified for the routing engine), so one provider erroring never
+        propagates out of dispatch."""
         start = monotonic()
         try:
-            result = await self.send_email_otp(payload)
+            result = await send_coro
             result.latency_ms = int((monotonic() - start) * 1000)
             return result
         except Exception as exc:
