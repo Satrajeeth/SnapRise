@@ -3,7 +3,8 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import String, Boolean
 
 from app.config import get_settings
 
@@ -15,7 +16,18 @@ class Base(DeclarativeBase):
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
-    pass
+
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(32), 
+                                                 unique=True,
+                                                 index=True,
+                                                 nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(512),
+                                                   nullable=True)
+    avatar_is_public: Mapped[bool] = mapped_column(Boolean,
+                                                   default=False,
+                                                   server_default="false",
+                                                   nullable=False)
 
 
 engine = create_async_engine(settings.database_url, pool_pre_ping=True)

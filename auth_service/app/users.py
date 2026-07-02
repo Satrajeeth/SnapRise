@@ -1,8 +1,9 @@
+import re
 import uuid
 import logging
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions, models
 from fastapi_users.authentication import (
     AuthenticationBackend,
@@ -11,14 +12,101 @@ from fastapi_users.authentication import (
 )
 from fastapi_users.jwt import generate_jwt
 from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.config import get_settings
 from app.db import User, get_user_db
 
 logger = logging.getLogger(__name__)
 
+# Usernames are stored lowercased; case-insensitive uniqueness is enforced by
+# normalizing on write (below) + the unique index on User.username. 3-32 chars,
+# lowercase letters / digits / underscore.
+_USERNAME_RE = re.compile(r"^[a-z0-9_]{3,32}$")
+
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
+    # --- Profile field normalization & validation (Phase 1.4) ---------------
+    # These run in create()/update() below so both the custom /auth/register
+    # route and the built-in /users PATCH router get the same treatment.
+
+    @staticmethod
+    def _normalize_optional_str(value: str | None) -> str | None:
+        """Strip whitespace; treat blank as unset (None)."""
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    def _clean_username(self, raw: str | None) -> str | None:
+        """Normalize to lowercase and validate charset/length. None if blank."""
+        username = self._normalize_optional_str(raw)
+        if username is None:
+            return None
+        username = username.lower()
+        if not _USERNAME_RE.match(username):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "INVALID_USERNAME",
+                    "reason": (
+                        "Username must be 3-32 characters: lowercase letters, "
+                        "digits, or underscore."
+                    ),
+                },
+            )
+        return username
+
+    async def _assert_username_available(
+        self, username: str | None, exclude_user_id: uuid.UUID | None = None
+    ) -> None:
+        """Proactive uniqueness check for a friendly 409 (the DB unique index is
+        the real guard; see the IntegrityError backstop in create/update)."""
+        if username is None:
+            return
+        result = await self.user_db.session.execute(
+            select(User).where(User.username == username)
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None and existing.id != exclude_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "USERNAME_TAKEN"},
+            )
+
+    async def create(self, user_create, safe: bool = False, request: Request | None = None):
+        user_create.display_name = self._normalize_optional_str(user_create.display_name)
+        user_create.username = self._clean_username(user_create.username)
+        await self._assert_username_available(user_create.username)
+        try:
+            return await super().create(user_create, safe=safe, request=request)
+        except IntegrityError:
+            # Lost a race on the unique index between the check above and commit.
+            await self.user_db.session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail={"code": "USERNAME_TAKEN"}
+            )
+
+    async def update(self, user_update, user, safe: bool = False, request: Request | None = None):
+        # Only touch fields the caller actually sent (exclude_unset semantics),
+        # so a PATCH that omits username/display_name leaves them unchanged.
+        if "display_name" in user_update.model_fields_set:
+            user_update.display_name = self._normalize_optional_str(user_update.display_name)
+        if "username" in user_update.model_fields_set:
+            user_update.username = self._clean_username(user_update.username)
+            if user_update.username != user.username:
+                await self._assert_username_available(
+                    user_update.username, exclude_user_id=user.id
+                )
+        try:
+            return await super().update(user_update, user, safe=safe, request=request)
+        except IntegrityError:
+            await self.user_db.session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail={"code": "USERNAME_TAKEN"}
+            )
+
     async def on_after_register(self, user: User, request: Request | None = None) -> None:
         logger.info("User %s has registered.", user.id)
 
