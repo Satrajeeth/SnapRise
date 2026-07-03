@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.internal import router as internal_router
 from app.api.reset import router as reset_router
 from app.api.token import router as token_router
 from app.config import get_settings
@@ -63,6 +64,11 @@ app.include_router(
     tags=["users"],
 )
 
+app.include_router(
+    internal_router,
+    prefix="/internal",
+    tags=["internal"],
+)
 
 @app.get("/health", tags=["health"])
 async def health_check():

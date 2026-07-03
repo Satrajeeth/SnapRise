@@ -1,9 +1,22 @@
+import hmac
+from typing import Optional
+
 import jwt
 from fastapi import HTTPException, status
 from app.config import get_settings
 
 settings = get_settings()
 
+
+async def require_profile_secret(
+        x_profile_secret: Optional[str] = Header(default=None),
+) -> None:
+    expected = settings.profile_lookup_secret
+    if not x_profile_secret or not hmac.compare_digest(x_profile_secret, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid profile secret"
+        )
+    
 def validate_proof_token(token: str, email: str, expected_purpose: str):
     try:
         payload = jwt.decode(
