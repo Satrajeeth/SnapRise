@@ -63,16 +63,14 @@ class Settings(BaseSettings):
         alias="PROVIDER_CIRCUIT_OPEN_SECONDS",
     )
 
-    otp_proof_secret: str = Field(default="secret", alias="OTP_PROOF_SECRET")
+    otp_proof_secret: str = Field(..., alias="OTP_PROOF_SECRET")
     otp_proof_lifetime_seconds: int = Field(
         default=900, alias="OTP_PROOF_LIFETIME_SECONDS"
     )
 
     # Shared secret protecting POST /v1/email/send (board_service -> otp_service).
     # Must match board_service's EMAIL_SEND_SECRET. Compose-network only.
-    email_send_secret: str = Field(
-        default="super-secret-email-key", alias="EMAIL_SEND_SECRET"
-    )
+    email_send_secret: str = Field(..., alias="EMAIL_SEND_SECRET")
 
     model_config = SettingsConfigDict(
         env_file=".env",

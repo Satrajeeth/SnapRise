@@ -24,16 +24,14 @@ class Settings(BaseSettings):
     # tokens auth_service issues. These three must match auth_service so the
     # signature/audience check passes, and so the `is_superuser` claim (embedded
     # by auth_service's SnapRiseJWTStrategy) can be trusted.
-    jwt_secret: str = Field(default="super-secret-auth-key", alias="JWT_SECRET")
+    jwt_secret: str = Field(..., alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     jwt_audience: str = Field(default="fastapi-users:auth", alias="JWT_AUDIENCE")
 
     # Shared secret protecting the internal lead-ingest endpoint. board_service's
     # outbox drainer presents this; it is NOT a user-facing credential and is only
     # reachable on the compose network. Compared in constant time.
-    admin_ingest_secret: str = Field(
-        default="super-secret-ingest-key", alias="ADMIN_INGEST_SECRET"
-    )
+    admin_ingest_secret: str = Field(..., alias="ADMIN_INGEST_SECRET")
 
     model_config = SettingsConfigDict(
         env_file=".env",

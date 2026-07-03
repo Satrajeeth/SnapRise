@@ -18,16 +18,13 @@ class Settings(BaseSettings):
     api_prefix: str = Field(default="/v1", alias="API_PREFIX")
     allowed_origins: List[str] = Field(default=["*"], alias="ALLOWED_ORIGINS")
 
-    #Security
-    #Default key for development only (Fernet 32-byte base64)
-    encryption_key: str = Field(
-        default="3-yHjX8W-k-q_M-S6kY_Uv_f_S6-S_L_Z-Y8-k-X8-I=",
-        alias="ENCRYPTION_KEY"
-    )
+    # Security — required secret, no default. Fernet 32-byte url-safe base64 key.
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    encryption_key: str = Field(..., alias="ENCRYPTION_KEY")
 
     # Must match the auth_service signing secret (auth_service AUTH_JWT_SECRET),
     # since the board service verifies the JWTs that the auth service issues.
-    jwt_secret: str = Field(default="super-secret-auth-key", alias="JWT_SECRET")
+    jwt_secret: str = Field(..., alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     # fastapi-users embeds this audience claim in login tokens; it must be
     # verified (or the claim is rejected) when decoding.
@@ -46,7 +43,7 @@ class Settings(BaseSettings):
     # one isolated cross-service hop; it never blocks the invite request path and
     # survives admin_service being down (rows stay undelivered, retried later).
     admin_service_url: str = Field(default="http://admin_api:8000", alias="ADMIN_SERVICE_URL")
-    admin_ingest_secret: str = Field(default="super-secret-ingest-key", alias="ADMIN_INGEST_SECRET")
+    admin_ingest_secret: str = Field(..., alias="ADMIN_INGEST_SECRET")
     lead_drain_enabled: bool = Field(default=True, alias="LEAD_DRAIN_ENABLED")
     lead_drain_interval_seconds: int = Field(default=30, alias="LEAD_DRAIN_INTERVAL_SECONDS")
     lead_drain_batch_size: int = Field(default=100, alias="LEAD_DRAIN_BATCH_SIZE")
@@ -59,7 +56,7 @@ class Settings(BaseSettings):
         default="console", alias="EMAIL_DELIVERY_MODE"
     )
     otp_service_url: str = Field(default="http://otp_api:8000", alias="OTP_SERVICE_URL")
-    email_send_secret: str = Field(default="super-secret-email-key", alias="EMAIL_SEND_SECRET")
+    email_send_secret: str = Field(..., alias="EMAIL_SEND_SECRET")
     email_drain_enabled: bool = Field(default=True, alias="EMAIL_DRAIN_ENABLED")
     email_drain_interval_seconds: int = Field(default=30, alias="EMAIL_DRAIN_INTERVAL_SECONDS")
     email_drain_batch_size: int = Field(default=50, alias="EMAIL_DRAIN_BATCH_SIZE")

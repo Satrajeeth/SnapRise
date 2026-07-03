@@ -6,15 +6,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "SnapRise Auth Service"
-    debug: bool = True
-    auth_jwt_secret: str = "super-secret-auth-key"
+    debug: bool = False
+    # Required secret — no default. Supplied via .env (git-ignored) / real env.
+    # MUST match admin_service JWT_SECRET and board_service JWT_SECRET.
+    auth_jwt_secret: str
     # Access tokens are short-lived; refresh tokens are long-lived and used
     # only to mint new access tokens via /auth/jwt/refresh.
     auth_jwt_access_lifetime_seconds: int = 3600  # 1 hour
     auth_jwt_refresh_lifetime_seconds: int = 60 * 60 * 24 * 30  # 30 days
     allowed_origins: str = "*"
 
-    database_url: str = "postgresql+asyncpg://app:password@postgres:5432/auth_db"
+    database_url: str
     reset_password_redirect_url: str = "http://localhost:3000/reset-password"
     password_reset_delivery_mode: Literal["console", "smtp"] = "console"
 
@@ -27,9 +29,11 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = False
     smtp_use_ssl: bool = False
 
-    otp_proof_secret: str = "secret"
+    # Required secret — verifies OTP proof tokens. MUST match otp_service OTP_PROOF_SECRET.
+    otp_proof_secret: str
 
-    profile_lookup_secret: str = "super-secret-profile-key"
+    # Required secret — gates the internal profile-lookup endpoint (presented by the BFF).
+    profile_lookup_secret: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
