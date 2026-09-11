@@ -2,7 +2,7 @@ import hmac
 from typing import Optional
 
 import jwt
-from fastapi import HTTPException, status
+from fastapi import Header, HTTPException, status
 from app.config import get_settings
 
 settings = get_settings()
