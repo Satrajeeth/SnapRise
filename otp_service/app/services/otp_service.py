@@ -83,7 +83,7 @@ class OtpService:
             locale=request.locale,
         )
         # In dev mode, include the OTP code in the response
-        if self.settings.dev_mode:
+        if self.settings.expose_dev_otp:
             response.dev_otp = code
         await self.quota_manager.set_cooldown(
             request.tenant_id,
@@ -207,6 +207,18 @@ class OtpService:
         *,
         allow_queue: bool = True,
     ) -> tuple[SendOtpResponse, int]:
+        if self.settings.expose_dev_otp:
+            challenge.status = ChallengeStatus.sent
+            challenge.provider_id = None
+            return (
+                SendOtpResponse(
+                    request_id=str(challenge.id),
+                    status="sent",
+                    provider_id=None,
+                    dev_otp=code,
+                ),
+                status.HTTP_200_OK,
+            )
         providers = await self._get_provider_configs(session)
         payload = ProviderSendPayload(
             request_id=str(challenge.id),
