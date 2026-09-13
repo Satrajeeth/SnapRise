@@ -61,7 +61,7 @@ class EmailService:
 
     def _default_smtp_provider_config(self) -> ProviderConfig:
         # Mirrors OtpService._default_smtp_provider_config so the SMTP fallback
-        # (e.g. mailhog in dev) is available to transactional email too.
+        # is available to transactional email when enabled.
         return ProviderConfig(
             provider_id=self.settings.smtp_provider_id,
             tier=ProviderTier.fallback,
