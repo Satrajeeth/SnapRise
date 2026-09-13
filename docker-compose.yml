@@ -72,7 +72,7 @@ services:
     environment:
       DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
       SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
-      DEV_MODE: "true"
+      EXPOSE_DEV_OTP: "true"
       SMTP_FALLBACK_ENABLED: "false"
       EMAIL_SEND_SECRET: ${EMAIL_SEND_SECRET:-super-secret-email-key}
     depends_on:

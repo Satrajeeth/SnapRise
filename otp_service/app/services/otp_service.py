@@ -83,7 +83,7 @@ class OtpService:
             locale=request.locale,
         )
         # In dev mode, include the OTP code in the response
-        if self.settings.dev_mode:
+        if self.settings.expose_dev_otp:
             response.dev_otp = code
         await self.quota_manager.set_cooldown(
             request.tenant_id,
