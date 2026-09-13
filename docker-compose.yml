@@ -47,14 +47,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # Dev SMTP sink (Phase 4). Catches all outbound email so the invite flow can be
-  # tested end-to-end without a real provider. Web UI at http://localhost:8025.
-  mailhog:
-    image: mailhog/mailhog
-    container_name: mailhog
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
 
   # ----------------------
   # APIs & SERVICES
@@ -80,16 +72,8 @@ services:
     environment:
       DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
       SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
-      DEV_MODE: "true"
-      # Phase 4: route SMTP at the mailhog dev sink and enable the SMTP fallback
-      # so transactional email (board invites) is deliverable without a real
-      # provider. Blank creds because mailhog needs no auth.
-      SMTP_HOST: mailhog
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_USE_TLS: "false"
-      SMTP_FALLBACK_ENABLED: "true"
+      EXPOSE_DEV_OTP: "true"
+      SMTP_FALLBACK_ENABLED: "false"
       EMAIL_SEND_SECRET: ${EMAIL_SEND_SECRET:-super-secret-email-key}
     depends_on:
       redis:
@@ -111,12 +95,7 @@ services:
     environment:
       DATABASE_URL: ${OTP_DATABASE_URL:-postgresql+asyncpg://snaprise_user:snaprise_password@postgres:5432/otp_db}
       SYNC_DATABASE_URL: ${OTP_SYNC_DATABASE_URL:-postgresql+psycopg2://snaprise_user:snaprise_password@postgres:5432/otp_db}
-      SMTP_HOST: mailhog
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_USE_TLS: "false"
-      SMTP_FALLBACK_ENABLED: "true"
+      SMTP_FALLBACK_ENABLED: "false"
     depends_on:
       redis:
         condition: service_healthy

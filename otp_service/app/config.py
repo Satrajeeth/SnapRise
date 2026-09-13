@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default="SnapRise OTP Service", alias="APP_NAME")
     environment: str = Field(default="development", alias="ENVIRONMENT")
     debug: bool = Field(default=False, alias="DEBUG")
-    dev_mode: bool = Field(default=False, alias="DEV_MODE")
+    expose_dev_otp: bool = Field(default=False, alias="EXPOSE_DEV_OTP")
 
     database_url: str = Field(..., alias="DATABASE_URL")
     sync_database_url: str = Field(..., alias="SYNC_DATABASE_URL")
